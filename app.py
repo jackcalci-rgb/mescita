@@ -513,23 +513,53 @@ def dashboard(settimane: int = 8):
     tz = ZoneInfo(os.getenv("MESCITA_TZ", "Europe/Rome"))
     settimane = max(1, min(settimane, 52))
     inizio = datetime.now(timezone.utc) - timedelta(weeks=settimane)
+    with db() as c:
+        bott = c.execute("SELECT product_id, nome, categoria, aperta_ts, aperta_il FROM bottiglie "
+                         "ORDER BY COALESCE(aperta_ts, aperta_il) DESC").fetchall()
+        abb = {(a["calice_product_id"], a["produttore"]): a["vino_product_id"]
+               for a in c.execute("SELECT * FROM abbinamenti_produttore")}
+
+    def tipo_di(categoria):
+        return CATEGORIE.get(categoria, {}).get("nome", "")
+
+    def vino_della_riga(r):
+        """Bottiglia (anche già chiusa) a cui appartiene un calice venduto, per mostrarne nome e tipo."""
+        pid, prod = r["product_id"], norm(r.get("produttore"))
+        vid = next((abb[k] for k in ((pid, prod), (0, prod), (pid, "")) if k in abb and (k[1] or k[0])), None)
+        if vid is not None:
+            cand = [b for b in bott if b["product_id"] == vid]
+        else:
+            cand = [b for b in bott if prod and prod in norm(b["nome"])]
+            if len({b["product_id"] for b in cand}) > 1:   # stesso produttore, vini diversi: prendi quello aperto prima della vendita
+                prima = [b for b in cand if (b["aperta_ts"] or b["aperta_il"]) <= r["data"]]
+                cand = prima[:1] or cand[:1]
+        return cand[0] if cand else None
+
     vendite, fonte = [], "cassa"
     try:
         ids = {p["id"] for p in odoo.prodotti_pos()}
         for r in odoo.righe_pos(ids, inizio.strftime("%Y-%m-%d %H:%M:%S")):
             quando = datetime.strptime(r["data"][:19], "%Y-%m-%d %H:%M:%S").replace(tzinfo=timezone.utc)
-            vendite.append((quando.astimezone(tz), r.get("produttore") or r.get("prodotto") or "?", r["qty"]))
+            b = vino_della_riga(r)
+            produttore = r.get("produttore") or ""
+            if b:
+                voce = (b["nome"], produttore, tipo_di(b["categoria"]))
+            else:
+                voce = (produttore or r.get("prodotto") or "?", "", r.get("prodotto") or "")
+            vendite.append((quando.astimezone(tz), voce, r["qty"]))
     except Exception:
         fonte = "app"
     if fonte == "app" or not vendite:
         fonte, vendite = "app", []
         with db() as c:
-            for r in c.execute("""SELECT v.ts, v.calici, b.nome FROM vendite v JOIN bottiglie b ON b.id = v.bottiglia_id
-                                  WHERE v.ts >= ?""", (inizio.astimezone(tz).replace(tzinfo=None).isoformat(),)):
-                vendite.append((datetime.fromisoformat(r["ts"]).replace(tzinfo=tz), r["nome"], r["calici"]))
+            for r in c.execute("""SELECT v.ts, v.calici, b.nome, b.categoria FROM vendite v
+                                  JOIN bottiglie b ON b.id = v.bottiglia_id WHERE v.ts >= ?""",
+                               (inizio.astimezone(tz).replace(tzinfo=None).isoformat(),)):
+                vendite.append((datetime.fromisoformat(r["ts"]).replace(tzinfo=tz),
+                                (r["nome"], "", tipo_di(r["categoria"])), r["calici"]))
     top, giorno, settimana = Counter(), defaultdict(float), Counter()
-    for quando, nome, q in vendite:
-        top[nome] += q
+    for quando, voce, q in vendite:
+        top[voce] += q
         giorno[quando.weekday()] += q
         lun = (quando - timedelta(days=quando.weekday())).date()
         settimana[lun.isoformat()] += q
@@ -545,7 +575,8 @@ def dashboard(settimane: int = 8):
     return {
         "fonte": fonte, "settimane": settimane, "totale": totale,
         "media_settimana": round(totale / settimane, 1),
-        "top": [{"nome": n, "calici": q} for n, q in top.most_common(10) if q > 0],
+        "top": [{"nome": n, "produttore": p, "tipo": t, "calici": q}
+                for (n, p, t), q in top.most_common(10) if q > 0],
         "per_giorno": [{"giorno": GIORNI[i], "media": round(giorno[i] / settimane, 1)} for i in range(7)],
         "per_settimana": [{"settimana": d, "calici": settimana.get(d, 0)} for d in sett],
         "bottiglie": {"chiuse": chiuse["n"] or 0, "sorridenti": chiuse["ok"] or 0,
