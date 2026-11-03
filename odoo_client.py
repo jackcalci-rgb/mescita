@@ -56,8 +56,12 @@ class OdooClient:
             domain.append(("location_id", "child_of", self.location_id))
         else:
             domain.append(("location_id.usage", "=", "internal"))
-        if self.categ_name:
-            domain.append(("product_id.categ_id.name", "ilike", self.categ_name))
+        # una o più categorie separate da virgola; include le sottocategorie
+        # (es. "Vini" prende anche "Vini / Bianchi" e "Vini / Rossi")
+        nomi = [n.strip() for n in self.categ_name.split(",") if n.strip()]
+        if nomi:
+            domain += ["|"] * (len(nomi) - 1)
+            domain += [("product_id.categ_id.complete_name", "ilike", n) for n in nomi]
         quants = self._call("stock.quant", "search_read", domain,
                             fields=["product_id", "quantity"])
         tot = {}
