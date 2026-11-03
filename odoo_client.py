@@ -33,8 +33,8 @@ class OdooClient:
         }
         # ordini POS finti per la demo (calici con attributo produttore)
         self._demo_pos = [
-            {"ordine": "Ristorante/0001", "tavolo": "T3", "stato": "paid", "product_id": 900, "prodotto": "Calice Rosso", "produttore": "Barolo", "qty": 2, "data": "2000-01-01 00:00:00"},
-            {"ordine": "Ristorante/0002", "tavolo": "T5", "stato": "draft", "product_id": 900, "prodotto": "Calice Rosso", "produttore": "Barolo", "qty": 3, "data": "2000-01-01 00:00:00"},
+            {"ordine": "Ristorante/0001", "tavolo": "T3", "stato": "paid", "product_id": 900, "prodotto": "[CR] Nebbiolo 100ML (Barolo)", "produttore": "Barolo", "qty": 2, "data": "2000-01-01 00:00:00"},
+            {"ordine": "Ristorante/0002", "tavolo": "T5", "stato": "draft", "product_id": 900, "prodotto": "[CR] Nebbiolo 100ML (Barolo)", "produttore": "Barolo", "qty": 3, "data": "2000-01-01 00:00:00"},
             {"ordine": "Ristorante/0002", "tavolo": "T5", "stato": "draft", "product_id": 901, "prodotto": "Calice Bollicine", "produttore": "Franciacorta", "qty": 1, "data": "2000-01-01 00:00:00"},
         ]
 
