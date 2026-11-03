@@ -2,7 +2,7 @@
 import os
 import sqlite3
 from contextlib import contextmanager
-from datetime import date, datetime
+from datetime import date, datetime, timezone
 
 from fastapi import FastAPI, HTTPException
 from fastapi.responses import FileResponse
@@ -49,6 +49,9 @@ CREATE TABLE IF NOT EXISTS vendite (
   ts TEXT NOT NULL, calici INTEGER NOT NULL);
 CREATE TABLE IF NOT EXISTS categoria_prodotto (
   product_id INTEGER PRIMARY KEY, categoria TEXT NOT NULL);
+-- quale prodotto POS "calice" corrisponde a quale vino in bottiglia
+CREATE TABLE IF NOT EXISTS abbinamenti (
+  calice_product_id INTEGER PRIMARY KEY, calice_nome TEXT NOT NULL, vino_product_id INTEGER NOT NULL);
 """
 
 
@@ -65,6 +68,12 @@ def db():
 
 with db() as c:
     c.executescript(SCHEMA)
+    if "aperta_ts" not in [r["name"] for r in c.execute("PRAGMA table_info(bottiglie)")]:
+        c.execute("ALTER TABLE bottiglie ADD COLUMN aperta_ts TEXT")  # ora di apertura, UTC
+
+
+def adesso_utc():
+    return datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M:%S")
 
 
 def oggi():
@@ -149,8 +158,8 @@ def apri_bottiglia(b: NuovaBottiglia):
         if not sessione_aperta(c):
             raise HTTPException(400, "Apri prima la sessione del giorno")
         c.execute("INSERT OR REPLACE INTO categoria_prodotto VALUES (?, ?)", (b.product_id, b.categoria))
-        cur = c.execute("INSERT INTO bottiglie (product_id, nome, categoria, aperta_il) VALUES (?,?,?,?)",
-                        (b.product_id, b.nome, b.categoria, oggi()))
+        cur = c.execute("INSERT INTO bottiglie (product_id, nome, categoria, aperta_il, aperta_ts) VALUES (?,?,?,?,?)",
+                        (b.product_id, b.nome, b.categoria, oggi(), adesso_utc()))
         return serializza(c.execute("SELECT * FROM bottiglie WHERE id=?", (cur.lastrowid,)).fetchone())
 
 
@@ -225,6 +234,79 @@ def storico(limit: int = 100):
         rows = c.execute("SELECT * FROM bottiglie WHERE stato='chiusa' ORDER BY chiusa_il DESC, id DESC LIMIT ?",
                          (limit,)).fetchall()
         return [serializza(r) for r in rows]
+
+
+# ---------------------------------------------------------------- POS in tempo reale
+@app.get("/api/pos/prodotti")
+def pos_prodotti():
+    return odoo.prodotti_pos()
+
+
+@app.get("/api/abbinamenti")
+def get_abbinamenti():
+    with db() as c:
+        return [dict(r) for r in c.execute("SELECT * FROM abbinamenti ORDER BY calice_nome")]
+
+
+class Abbinamento(BaseModel):
+    calice_product_id: int
+    calice_nome: str
+    vino_product_id: int
+
+
+@app.post("/api/abbinamenti")
+def set_abbinamento(a: Abbinamento):
+    with db() as c:
+        c.execute("INSERT OR REPLACE INTO abbinamenti VALUES (?,?,?)",
+                  (a.calice_product_id, a.calice_nome, a.vino_product_id))
+    return get_abbinamenti()
+
+
+@app.delete("/api/abbinamenti/{calice_product_id}")
+def del_abbinamento(calice_product_id: int):
+    with db() as c:
+        c.execute("DELETE FROM abbinamenti WHERE calice_product_id=?", (calice_product_id,))
+    return get_abbinamenti()
+
+
+@app.get("/api/pos/calici")
+def pos_calici():
+    """Calici battuti in cassa (anche su conti ancora aperti) per i vini con bottiglia aperta,
+    confrontati con i calici segnati nell'app."""
+    with db() as c:
+        bott = c.execute("SELECT * FROM bottiglie WHERE stato != 'chiusa'").fetchall()
+        abb = c.execute("SELECT * FROM abbinamenti").fetchall()
+    calice_di = {}  # vino -> [calice ids]
+    nome_calice = {}
+    for a in abb:
+        calice_di.setdefault(a["vino_product_id"], []).append(a["calice_product_id"])
+        nome_calice[a["calice_product_id"]] = a["calice_nome"]
+    per_vino, tutte = [], []
+    vini = {}
+    for b in bott:
+        v = vini.setdefault(b["product_id"], {"vino_product_id": b["product_id"], "nome": b["nome"],
+                                              "calici_app": 0, "dal": None, "bottiglie": 0})
+        v["calici_app"] += b["calici"]
+        v["bottiglie"] += 1
+        dal = b["aperta_ts"] or f"{b['aperta_il']} 00:00:00"
+        v["dal"] = min(v["dal"] or dal, dal)
+    for v in vini.values():
+        ids = calice_di.get(v["vino_product_id"], [])
+        righe = odoo.righe_pos(ids, v["dal"]) if ids else []
+        for r in righe:
+            r["calice"] = nome_calice.get(r["product_id"], "")
+            r["vino"] = v["nome"]
+        tutte += righe
+        cassa = sum(r["qty"] for r in righe)
+        per_vino.append({**v, "abbinato": bool(ids), "calici_cassa": cassa,
+                         "calici_aperti": sum(r["qty"] for r in righe if r["stato"] == "draft"),
+                         "differenza": cassa - v["calici_app"]})
+    ordini = {}
+    for r in tutte:
+        o = ordini.setdefault(r["ordine"], {"ordine": r["ordine"], "tavolo": r["tavolo"],
+                                           "stato": r["stato"], "righe": []})
+        o["righe"].append({"calice": r["calice"], "vino": r["vino"], "qty": r["qty"]})
+    return {"per_vino": per_vino, "ordini": sorted(ordini.values(), key=lambda o: o["ordine"])}
 
 
 app.mount("/static", StaticFiles(directory=os.path.join(os.path.dirname(__file__), "static")), name="static")

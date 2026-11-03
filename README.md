@@ -46,3 +46,8 @@ sudo cp deploy/nginx-mescita.conf /etc/nginx/sites-enabled/mescita && sudo nginx
 sudo certbot --nginx -d mescita.profumidistria.com   # HTTPS
 ```
 Il database è il file `mescita.db` (SQLite): fanne un backup periodico.
+
+## Calici in tempo reale dalla cassa (POS Odoo)
+L'app legge le righe d'ordine del POS di Odoo, anche dei conti non ancora pagati, e per ogni bottiglia aperta mostra quanti calici sono stati battuti in cassa dal momento dell'apertura, confrontandoli con i calici segnati nell'app. La tabella "Calici in cassa" elenca ogni ordine con tavolo e stato (conto aperto / pagato) e si aggiorna ogni 30 secondi.
+
+Per farlo funzionare, in fondo alla pagina abbina ogni prodotto POS "calice" (es. "Calice Barolo") al vino in bottiglia corrispondente. Un ordine compare appena la cassa lo sincronizza con Odoo: in modalità ristorante succede a ogni invio in cucina, cambio tavolo o pagamento. L'utente Odoo della web app deve poter leggere il Punto Vendita.

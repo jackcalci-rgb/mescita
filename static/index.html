@@ -44,8 +44,17 @@ table{width:100%;border-collapse:collapse;font-size:14px}td,th{padding:6px;borde
   <h2>Bottiglie aperte</h2>
   <div id="aperte"></div>
 
+  <h2>Calici in cassa (aggiornato ogni 30 s) <button class="sec" onclick="caricaPos()" style="padding:4px 10px">↻</button></h2>
+  <div class="card"><table><thead><tr><th>Ordine</th><th>Tavolo</th><th>Stato</th><th>Calici</th></tr></thead><tbody id="ordini"></tbody></table>
+    <p class="muted" style="margin:8px 0 0">Gli ordini compaiono quando la cassa li sincronizza con Odoo (invio in cucina, cambio tavolo o pagamento).</p></div>
+
   <h2>Storico bottiglie finite</h2>
   <div class="card"><table><thead><tr><th></th><th>Vino</th><th>Calici</th><th>Giorni</th><th>Chiusa il</th><th>Odoo</th></tr></thead><tbody id="storico"></tbody></table></div>
+  <h2>Abbinamenti calice → bottiglia</h2>
+  <div class="card">
+    <div class="row"><select id="abbCalice" class="grow"></select><span>→</span><select id="abbVino" class="grow"></select><button onclick="aggAbb()">Abbina</button></div>
+    <table style="margin-top:10px"><tbody id="abbList"></tbody></table>
+  </div>
 </main>
 
 <dialog id="riep"><div id="riepBody"></div><p><button onclick="riep.close()">OK</button></p></dialog>
@@ -81,7 +90,8 @@ async function carica(){
       <div class="row">
         <div class="grow"><b>${esc(b.nome)}</b><br>
           <span class="muted">${esc(b.categoria_nome)} · aperta il ${b.aperta_il} · da ${b.giorni} gg (max ${b.max_giorni})</span>
-          <span class="badge ${b.durata}">${{ok:'OK',attenzione:'Da finire presto',scaduta:'Oltre la durata!'}[b.durata]||''}</span></div>
+          <span class="badge ${b.durata}">${{ok:'OK',attenzione:'Da finire presto',scaduta:'Oltre la durata!'}[b.durata]||''}</span>
+          <div class="muted pos" data-vino="${b.product_id}"></div></div>
         <button class="sec big" onclick="calice(${b.id},-1)" ${b.stato==='finita'||!SESS?'disabled':''}>−</button>
         <div class="calici">${b.calici}<div class="muted" style="font-size:12px;font-weight:400">/ ${INFO.calici_per_bottiglia} calici</div></div>
         <button class="big" onclick="calice(${b.id},1)" ${b.stato==='finita'||!SESS?'disabled':''}>+ calice</button>
@@ -90,9 +100,33 @@ async function carica(){
           : `<button class="sec" onclick="finita(${b.id},true)">Bottiglia finita</button>`}
       </div>
     </div>`).join('') : '<div class="card muted">Nessuna bottiglia aperta.</div>';
+  caricaPos();
   const st = await api('/api/storico');
   $('storico').innerHTML = st.map(b => `<tr><td class="face" style="font-size:22px">${faccia(b.faccina)}</td><td>${esc(b.nome)}</td><td>${b.calici}</td><td>${b.giorni_aperta}</td><td>${b.chiusa_il}</td><td>${b.scaricata_odoo?'✔ scaricata':'⚠ non scaricata'}</td></tr>`).join('') || '<tr><td colspan="6" class="muted">Ancora nessuna.</td></tr>';
 }
+const STATO = {draft:['Conto aperto','attenzione'], paid:['Pagato','ok'], done:['Pagato','ok'], invoiced:['Fatturato','ok']};
+async function caricaPos(){
+  const p = await api('/api/pos/calici');
+  $('ordini').innerHTML = p.ordini.map(o => { const [t,c] = STATO[o.stato] || [o.stato,'ok'];
+    return `<tr><td>${esc(o.ordine)}</td><td>${esc(o.tavolo||'—')}</td><td><span class="badge ${c}">${t}</span></td><td>${o.righe.map(r => `${r.qty} × ${esc(r.calice)}`).join('<br>')}</td></tr>`; }).join('')
+    || '<tr><td colspan="4" class="muted">Nessun calice battuto in cassa per le bottiglie aperte.</td></tr>';
+  for (const v of p.per_vino) document.querySelectorAll(`.pos[data-vino="${v.vino_product_id}"]`).forEach(el => {
+    if (!v.abbinato) { el.innerHTML = 'Cassa: nessun prodotto calice abbinato (vedi in fondo)'; return; }
+    const diff = v.differenza === 0 ? '<span class="badge ok">coincide</span>'
+      : `<span class="badge scaduta">${v.differenza > 0 ? '+' : ''}${v.differenza} rispetto all'app</span>`;
+    el.innerHTML = `Cassa: <b>${v.calici_cassa}</b> calici${v.calici_aperti ? ` (${v.calici_aperti} su conti aperti)` : ''} ${diff}${v.bottiglie > 1 ? ' · totale di ' + v.bottiglie + ' bottiglie' : ''}`;
+  });
+}
+async function caricaAbb(){
+  const [prod, abb] = await Promise.all([api('/api/pos/prodotti'), api('/api/abbinamenti')]);
+  $('abbCalice').innerHTML = prod.map(p => `<option value="${p.id}">${esc(p.name)}</option>`).join('');
+  $('abbVino').innerHTML = STOCK.map(v => `<option value="${v.id}">${esc(v.name)}</option>`).join('');
+  const nomeVino = id => (STOCK.find(v => v.id == id) || {name:'#' + id}).name;
+  $('abbList').innerHTML = abb.map(a => `<tr><td>${esc(a.calice_nome)}</td><td>→ ${esc(nomeVino(a.vino_product_id))}</td><td><button class="sec" onclick="delAbb(${a.calice_product_id})">Rimuovi</button></td></tr>`).join('')
+    || '<tr><td class="muted">Abbina ogni prodotto "calice" del POS alla sua bottiglia per vedere i calici in cassa.</td></tr>';
+}
+async function aggAbb(){ const s = $('abbCalice'); await api('/api/abbinamenti', {calice_product_id:+s.value, calice_nome:s.options[s.selectedIndex].text, vino_product_id:+$('abbVino').value}); caricaAbb(); caricaPos(); }
+async function delAbb(id){ await fetch('/api/abbinamenti/' + id, {method:'DELETE'}); caricaAbb(); caricaPos(); }
 function aggCategoria(){ const v = STOCK.find(x => x.id == $('vino').value); if (v && v.categoria) $('categoria').value = v.categoria; }
 async function apriSessione(){ await api('/api/sessione/apri', {}); carica(); }
 async function apriBottiglia(){
@@ -110,7 +144,8 @@ async function chiudiSessione(){
     ${r.errori.length ? '<h4>Errori Odoo</h4>' + r.errori.map(e => `<p style="color:var(--bad)">${esc(e)}</p>`).join('') : ''}`;
   riep.showModal(); carica();
 }
-init();
+init().then(caricaAbb);
+setInterval(caricaPos, 30000);
 </script>
 </body>
 </html>

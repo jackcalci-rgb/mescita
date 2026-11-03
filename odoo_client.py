@@ -26,6 +26,12 @@ class OdooClient:
             5: {"id": 5, "name": "Barolo DOCG", "qty": 3, "categ": "rosso_corposo"},
             6: {"id": 6, "name": "Passito di Pantelleria", "qty": 2, "categ": "dolce"},
         }
+        # ordini POS finti per la demo (prodotto 105 = "Calice Barolo DOCG")
+        self._demo_pos = [
+            {"ordine": "Ristorante/0001", "tavolo": "T3", "stato": "paid", "product_id": 105, "qty": 2, "data": "2000-01-01 00:00:00"},
+            {"ordine": "Ristorante/0002", "tavolo": "T5", "stato": "draft", "product_id": 105, "qty": 3, "data": "2000-01-01 00:00:00"},
+            {"ordine": "Ristorante/0002", "tavolo": "T5", "stato": "draft", "product_id": 101, "qty": 1, "data": "2000-01-01 00:00:00"},
+        ]
 
     # --- connessione -------------------------------------------------------
     def _uid_get(self):
@@ -80,3 +86,47 @@ class OdooClient:
         self._call("stock.quant", "write", [q["id"]], {"inventory_quantity": q["quantity"] - quante})
         self._call("stock.quant", "action_apply_inventory", [q["id"]])
         return True
+
+    # --- POS: calici venduti in tempo reale --------------------------------
+    def prodotti_pos(self):
+        """Prodotti vendibili al POS (per abbinare 'Calice X' alla bottiglia X)."""
+        if self.demo:
+            return [{"id": 100 + v["id"], "name": f"Calice {v['name']}"} for v in self._demo_stock.values()]
+        return self._call("product.product", "search_read", [("available_in_pos", "=", True)],
+                          fields=["id", "name"], order="name")
+
+    def righe_pos(self, product_ids, dal_utc: str):
+        """Righe d'ordine POS (anche ordini non ancora pagati) per i prodotti dati.
+
+        dal_utc: 'YYYY-MM-DD HH:MM:SS' in UTC (come le date di Odoo).
+        Ritorna [{ordine, tavolo, stato, product_id, qty, data}].
+        Nota: un ordine compare qui appena la cassa lo sincronizza con Odoo
+        (in modalità ristorante: a ogni invio in cucina / cambio tavolo / pagamento).
+        """
+        if not product_ids:
+            return []
+        if self.demo:
+            return [dict(r) for r in self._demo_pos if r["product_id"] in product_ids]
+        righe = self._call("pos.order.line", "search_read",
+                           [("product_id", "in", list(product_ids)), ("create_date", ">=", dal_utc),
+                            ("order_id.state", "!=", "cancel")],
+                           fields=["order_id", "product_id", "qty", "create_date"])
+        ordini = {}
+        ids = list({r["order_id"][0] for r in righe})
+        if ids:
+            campi = ["id", "name", "state"]
+            try:
+                info = self._call("pos.order", "read", ids, fields=campi + ["table_id"])
+            except Exception:  # POS senza modulo ristorante: niente tavoli
+                info = self._call("pos.order", "read", ids, fields=campi)
+            ordini = {o["id"]: o for o in info}
+        out = []
+        for r in righe:
+            o = ordini.get(r["order_id"][0], {})
+            tav = o.get("table_id")
+            out.append({"ordine": o.get("name", r["order_id"][1]),
+                        "tavolo": tav[1] if tav else None,
+                        "stato": o.get("state", "draft"),
+                        "product_id": r["product_id"][0],
+                        "qty": r["qty"], "data": r["create_date"]})
+        return out
