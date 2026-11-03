@@ -4,6 +4,7 @@ import re
 import sqlite3
 from contextlib import contextmanager
 from datetime import date, datetime, timezone
+from typing import Optional
 
 from fastapi import FastAPI, HTTPException, Request
 from fastapi.responses import FileResponse, JSONResponse, RedirectResponse
@@ -161,9 +162,9 @@ def aggiungi_utente(u: NuovoUtente, request: Request):
 
 
 class ModificaUtente(BaseModel):
-    pin: str | None = None
-    ruolo: str | None = None
-    attivo: bool | None = None
+    pin: Optional[str] = None
+    ruolo: Optional[str] = None
+    attivo: Optional[bool] = None
 
 
 @app.post("/api/utenti/{uid}")
