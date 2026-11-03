@@ -48,6 +48,35 @@ class OdooClient:
         models = xmlrpc.client.ServerProxy(f"{self.url}/xmlrpc/2/object", allow_none=True)
         return models.execute_kw(self.db, self._uid_get(), self.password, model, method, list(args), kw)
 
+    # --- filtro categorie -----------------------------------------------
+    def _campo_pos_categ(self):
+        """Nome del campo categoria POS sul prodotto (cambia tra versioni di Odoo)."""
+        if not hasattr(self, "_pos_field"):
+            campi = self._call("product.product", "fields_get", attributes=["type"])
+            self._pos_field = next((f for f in ("pos_categ_ids", "pos_categ_id") if f in campi), None)
+        return self._pos_field
+
+    def _filtro_categorie(self, testo: str, prefisso: str = ""):
+        """Dominio Odoo per una o più categorie separate da virgola.
+
+        Ogni nome viene cercato sia tra le categorie prodotto (sottocategorie incluse)
+        sia tra le categorie del POS (es. "Vini Bianchi", "Mescita").
+        """
+        nomi = [n.strip() for n in (testo or "").split(",") if n.strip()]
+        if not nomi:
+            return []
+        pos = self._campo_pos_categ()
+        termini = []
+        for n in nomi:
+            t = [(f"{prefisso}categ_id.complete_name", "ilike", n)]
+            if pos:
+                t.append((f"{prefisso}{pos}.name", "ilike", n))
+            termini.append(t)
+        dom = []
+        tutti = [x for t in termini for x in t]
+        dom += ["|"] * (len(tutti) - 1)
+        return dom + tutti
+
     # --- lettura stock ----------------------------------------------------
     def vini_in_stock(self):
         """Ritorna [{id, name, qty, categ}] dei vini con giacenza > 0."""
@@ -58,12 +87,7 @@ class OdooClient:
             domain.append(("location_id", "child_of", self.location_id))
         else:
             domain.append(("location_id.usage", "=", "internal"))
-        # una o più categorie separate da virgola; include le sottocategorie
-        # (es. "Vini" prende anche "Vini / Bianchi" e "Vini / Rossi")
-        nomi = [n.strip() for n in self.categ_name.split(",") if n.strip()]
-        if nomi:
-            domain += ["|"] * (len(nomi) - 1)
-            domain += [("product_id.categ_id.complete_name", "ilike", n) for n in nomi]
+        domain += self._filtro_categorie(self.categ_name, "product_id.")
         quants = self._call("stock.quant", "search_read", domain,
                             fields=["product_id", "quantity"])
         tot = {}
@@ -99,8 +123,7 @@ class OdooClient:
         if self.demo:
             return [{"id": 100 + v["id"], "name": f"Calice {v['name']}"} for v in self._demo_stock.values()]
         domain = [("available_in_pos", "=", True)]
-        if self.calice_categ:
-            domain.append(("categ_id.complete_name", "ilike", self.calice_categ))
+        domain += self._filtro_categorie(self.calice_categ)
         return self._call("product.product", "search_read", domain,
                           fields=["id", "name"], order="name")
 
