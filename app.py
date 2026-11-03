@@ -1,5 +1,6 @@
 """Mescita a calice: controllo bottiglie aperte vs calici venduti, collegato a Odoo."""
 import os
+import re
 import sqlite3
 from contextlib import contextmanager
 from datetime import date, datetime, timezone
@@ -49,9 +50,16 @@ CREATE TABLE IF NOT EXISTS vendite (
   ts TEXT NOT NULL, calici INTEGER NOT NULL);
 CREATE TABLE IF NOT EXISTS categoria_prodotto (
   product_id INTEGER PRIMARY KEY, categoria TEXT NOT NULL);
--- quale prodotto POS "calice" corrisponde a quale vino in bottiglia
+-- (vecchio) quale prodotto POS "calice" corrisponde a quale vino in bottiglia
 CREATE TABLE IF NOT EXISTS abbinamenti (
   calice_product_id INTEGER PRIMARY KEY, calice_nome TEXT NOT NULL, vino_product_id INTEGER NOT NULL);
+-- abbinamenti manuali produttore -> bottiglia, usati quando quello automatico
+-- (nome produttore contenuto nel nome della bottiglia) non basta.
+-- calice_product_id = 0 vale per qualsiasi calice; produttore = '' per qualsiasi produttore.
+CREATE TABLE IF NOT EXISTS abbinamenti_produttore (
+  calice_product_id INTEGER NOT NULL DEFAULT 0, produttore TEXT NOT NULL DEFAULT '',
+  descrizione TEXT NOT NULL, vino_product_id INTEGER NOT NULL,
+  PRIMARY KEY (calice_product_id, produttore));
 """
 
 
@@ -70,6 +78,8 @@ with db() as c:
     c.executescript(SCHEMA)
     if "aperta_ts" not in [r["name"] for r in c.execute("PRAGMA table_info(bottiglie)")]:
         c.execute("ALTER TABLE bottiglie ADD COLUMN aperta_ts TEXT")  # ora di apertura, UTC
+    c.execute("""INSERT OR IGNORE INTO abbinamenti_produttore
+                 SELECT calice_product_id, '', calice_nome, vino_product_id FROM abbinamenti""")
 
 
 def adesso_utc():
@@ -242,71 +252,96 @@ def pos_prodotti():
     return odoo.prodotti_pos()
 
 
+def norm(t):
+    return " ".join(re.sub(r"[^\w]+", " ", (t or "").lower()).split())
+
+
 @app.get("/api/abbinamenti")
 def get_abbinamenti():
     with db() as c:
-        return [dict(r) for r in c.execute("SELECT * FROM abbinamenti ORDER BY calice_nome")]
+        return [dict(r) for r in c.execute("SELECT * FROM abbinamenti_produttore ORDER BY descrizione")]
 
 
 class Abbinamento(BaseModel):
-    calice_product_id: int
-    calice_nome: str
+    calice_product_id: int = 0
+    produttore: str = ""
+    descrizione: str
     vino_product_id: int
 
 
 @app.post("/api/abbinamenti")
 def set_abbinamento(a: Abbinamento):
     with db() as c:
-        c.execute("INSERT OR REPLACE INTO abbinamenti VALUES (?,?,?)",
-                  (a.calice_product_id, a.calice_nome, a.vino_product_id))
+        c.execute("INSERT OR REPLACE INTO abbinamenti_produttore VALUES (?,?,?,?)",
+                  (a.calice_product_id, norm(a.produttore), a.descrizione, a.vino_product_id))
     return get_abbinamenti()
 
 
-@app.delete("/api/abbinamenti/{calice_product_id}")
-def del_abbinamento(calice_product_id: int):
+@app.delete("/api/abbinamenti")
+def del_abbinamento(calice_product_id: int = 0, produttore: str = ""):
     with db() as c:
-        c.execute("DELETE FROM abbinamenti WHERE calice_product_id=?", (calice_product_id,))
+        c.execute("DELETE FROM abbinamenti_produttore WHERE calice_product_id=? AND produttore=?",
+                  (calice_product_id, norm(produttore)))
     return get_abbinamenti()
 
 
 @app.get("/api/pos/calici")
 def pos_calici():
-    """Calici battuti in cassa (anche su conti ancora aperti) per i vini con bottiglia aperta,
-    confrontati con i calici segnati nell'app."""
+    """Calici battuti in cassa (anche su conti ancora aperti), assegnati alle bottiglie aperte
+    tramite l'attributo Produttore del calice, e confrontati con i calici segnati nell'app."""
     with db() as c:
         bott = c.execute("SELECT * FROM bottiglie WHERE stato != 'chiusa'").fetchall()
-        abb = c.execute("SELECT * FROM abbinamenti").fetchall()
-    calice_di = {}  # vino -> [calice ids]
-    nome_calice = {}
-    for a in abb:
-        calice_di.setdefault(a["vino_product_id"], []).append(a["calice_product_id"])
-        nome_calice[a["calice_product_id"]] = a["calice_nome"]
-    per_vino, tutte = [], []
+        abb = {(a["calice_product_id"], a["produttore"]): a["vino_product_id"]
+               for a in c.execute("SELECT * FROM abbinamenti_produttore")}
     vini = {}
     for b in bott:
         v = vini.setdefault(b["product_id"], {"vino_product_id": b["product_id"], "nome": b["nome"],
-                                              "calici_app": 0, "dal": None, "bottiglie": 0})
+                                              "calici_app": 0, "dal": None, "bottiglie": 0,
+                                              "calici_cassa": 0, "calici_aperti": 0})
         v["calici_app"] += b["calici"]
         v["bottiglie"] += 1
         dal = b["aperta_ts"] or f"{b['aperta_il']} 00:00:00"
         v["dal"] = min(v["dal"] or dal, dal)
-    for v in vini.values():
-        ids = calice_di.get(v["vino_product_id"], [])
-        righe = odoo.righe_pos(ids, v["dal"]) if ids else []
-        for r in righe:
-            r["calice"] = nome_calice.get(r["product_id"], "")
-            r["vino"] = v["nome"]
-        tutte += righe
-        cassa = sum(r["qty"] for r in righe)
-        per_vino.append({**v, "abbinato": bool(ids), "calici_cassa": cassa,
-                         "calici_aperti": sum(r["qty"] for r in righe if r["stato"] == "draft"),
-                         "differenza": cassa - v["calici_app"]})
-    ordini = {}
-    for r in tutte:
+    righe = []
+    if vini:
+        calici_ids = {p["id"] for p in odoo.prodotti_pos()} | {k[0] for k in abb if k[0]}
+        righe = odoo.righe_pos(calici_ids, min(v["dal"] for v in vini.values()))
+
+    def assegna(r):
+        """Ritorna (vino_product_id | None, esito)."""
+        pid, prod = r["product_id"], norm(r.get("produttore"))
+        for k in ((pid, prod), (0, prod), (pid, "")):
+            if k in abb and (k[1] or k[0]):
+                return (abb[k], "manuale") if abb[k] in vini else (None, "bottiglia non aperta")
+        if not prod:
+            return None, "senza produttore"
+        cand = [v for v in vini.values() if prod in norm(v["nome"])]
+        if len(cand) == 1:
+            return cand[0]["vino_product_id"], "automatico"
+        return None, "più bottiglie aperte" if cand else "nessuna bottiglia aperta"
+
+    ordini, da_abbinare = {}, {}
+    for r in righe:
+        vid, esito = assegna(r)
+        v = vini.get(vid)
+        if v and r["data"] < v["dal"]:
+            v, esito = None, "venduto prima dell'apertura"
+        if v:
+            v["calici_cassa"] += r["qty"]
+            if r["stato"] == "draft":
+                v["calici_aperti"] += r["qty"]
+        else:
+            k = (r["product_id"], norm(r.get("produttore")))
+            d = da_abbinare.setdefault(k, {"calice_product_id": r["product_id"], "prodotto": r["prodotto"],
+                                           "produttore": r.get("produttore") or "", "qty": 0, "esito": esito})
+            d["qty"] += r["qty"]
         o = ordini.setdefault(r["ordine"], {"ordine": r["ordine"], "tavolo": r["tavolo"],
                                            "stato": r["stato"], "righe": []})
-        o["righe"].append({"calice": r["calice"], "vino": r["vino"], "qty": r["qty"]})
-    return {"per_vino": per_vino, "ordini": sorted(ordini.values(), key=lambda o: o["ordine"])}
+        o["righe"].append({"calice": r["prodotto"], "produttore": r.get("produttore") or "",
+                           "vino": v["nome"] if v else None, "esito": esito, "qty": r["qty"]})
+    per_vino = [{**v, "differenza": v["calici_cassa"] - v["calici_app"]} for v in vini.values()]
+    return {"per_vino": per_vino, "ordini": sorted(ordini.values(), key=lambda o: o["ordine"]),
+            "da_abbinare": list(da_abbinare.values())}
 
 
 app.mount("/static", StaticFiles(directory=os.path.join(os.path.dirname(__file__), "static")), name="static")

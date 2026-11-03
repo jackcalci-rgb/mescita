@@ -50,4 +50,6 @@ Il database è il file `mescita.db` (SQLite): fanne un backup periodico.
 ## Calici in tempo reale dalla cassa (POS Odoo)
 L'app legge le righe d'ordine del POS di Odoo, anche dei conti non ancora pagati, e per ogni bottiglia aperta mostra quanti calici sono stati battuti in cassa dal momento dell'apertura, confrontandoli con i calici segnati nell'app. La tabella "Calici in cassa" elenca ogni ordine con tavolo e stato (conto aperto / pagato) e si aggiorna ogni 30 secondi.
 
-Per farlo funzionare, in fondo alla pagina abbina ogni prodotto POS "calice" (es. "Calice Barolo") al vino in bottiglia corrispondente. Un ordine compare appena la cassa lo sincronizza con Odoo: in modalità ristorante succede a ogni invio in cucina, cambio tavolo o pagamento. L'utente Odoo della web app deve poter leggere il Punto Vendita.
+Ogni riga POS di un calice (prodotti della categoria `ODOO_CALICE_CATEGORY`, es. "Mescita") viene assegnata alla bottiglia aperta tramite l'attributo **Produttore** del calice (vale anche per "Produttore Classico" e "Produttore Charmat"): l'app cerca la bottiglia aperta il cui nome contiene il nome del produttore. Se non ne trova nessuna o ne trova più di una, il calice compare in "Calici da abbinare", dove si può scegliere la bottiglia a mano; l'abbinamento viene ricordato.
+
+Un ordine compare appena la cassa lo sincronizza con Odoo: in modalità ristorante succede a ogni invio in cucina, cambio tavolo o pagamento. L'utente Odoo della web app deve poter leggere il Punto Vendita.
