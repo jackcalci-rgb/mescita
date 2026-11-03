@@ -3,21 +3,26 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Mescita · Accesso</title>
+<title>DVOR · Accesso</title>
+<link rel="icon" href="/static/favicon.png">
+<link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@600&family=Inter:wght@400;600&display=swap" rel="stylesheet">
 <style>
-:root{--bg:#f7f3ee;--card:#fff;--ink:#2a1f1a;--muted:#7a6a60;--vino:#7b1e2b;--line:#e5dcd3;--bad:#c62828}
-@media (prefers-color-scheme:dark){:root{--bg:#1b1513;--card:#26201d;--ink:#f3ebe4;--muted:#b3a39a;--line:#3a312c}}
-*{box-sizing:border-box}body{margin:0;font-family:system-ui,-apple-system,Segoe UI,sans-serif;background:var(--bg);color:var(--ink);min-height:100vh;display:grid;place-items:center;padding:16px}
-form{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:22px;width:100%;max-width:340px;display:grid;gap:12px}
-h1{margin:0 0 4px;font-size:22px;color:var(--vino)}
-input{font:inherit;padding:12px;border-radius:10px;border:1px solid var(--line);background:var(--card);color:var(--ink)}
-button{font:inherit;border:0;border-radius:10px;padding:12px;background:var(--vino);color:#fff;cursor:pointer}
-#err{color:var(--bad);min-height:1.2em;margin:0;font-size:14px}
+:root{--bg:#f6f2ec;--card:#fff;--ink:#1b1918;--muted:#7c736c;--accent:#cf4731;--line:#e8e1d8;--bad:#c0392b}
+*{box-sizing:border-box}
+body{margin:0;font-family:Inter,system-ui,sans-serif;background:var(--bg);color:var(--ink);min-height:100vh;display:grid;place-items:center;padding:16px}
+form{background:var(--card);border:1px solid var(--line);border-radius:22px;padding:32px 26px;width:100%;max-width:360px;display:grid;gap:14px;box-shadow:0 4px 30px rgba(27,25,24,.08)}
+img{width:180px;margin:0 auto 2px;display:block}
+.sub{text-align:center;font-family:"Cormorant Garamond",Georgia,serif;font-size:22px;color:var(--muted);margin:0 0 10px}
+input{font:inherit;padding:13px 14px;border-radius:12px;border:1px solid var(--line);background:#fff;color:var(--ink);width:100%}
+input:focus{outline:2px solid var(--accent);border-color:transparent}
+button{font:inherit;font-weight:600;border:0;border-radius:12px;padding:13px;background:var(--accent);color:#fff;cursor:pointer}
+#err{color:var(--bad);min-height:1.2em;margin:0;font-size:14px;text-align:center}
 </style>
 </head>
 <body>
 <form id="f">
-  <h1>🍷 Mescita a calice</h1>
+  <img src="/static/logo-dvor.png" alt="DVOR">
+  <p class="sub">Mescita a calice</p>
   <input id="nome" placeholder="Nome" autocomplete="username" required>
   <input id="pin" placeholder="PIN" type="password" inputmode="numeric" autocomplete="current-password" required>
   <button>Entra</button>

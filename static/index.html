@@ -2,198 +2,493 @@
 <html lang="it">
 <head>
 <meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Mescita</title>
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#f6f2ec">
+<title>DVOR · Mescita</title>
+<link rel="icon" href="/static/favicon.png">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@500;600;700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
 <style>
-:root{--bg:#f7f3ee;--card:#fff;--ink:#2a1f1a;--muted:#7a6a60;--vino:#7b1e2b;--ok:#2e7d32;--warn:#e69500;--bad:#c62828;--line:#e5dcd3}
-@media (prefers-color-scheme:dark){:root{--bg:#1b1513;--card:#26201d;--ink:#f3ebe4;--muted:#b3a39a;--line:#3a312c}}
-*{box-sizing:border-box}body{margin:0;font-family:system-ui,-apple-system,Segoe UI,sans-serif;background:var(--bg);color:var(--ink)}
-header{background:var(--vino);color:#fff;padding:14px 16px;display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap}
-header h1{margin:0;font-size:20px}.demo{background:#fff3;padding:2px 8px;border-radius:10px;font-size:12px}
-main{max-width:900px;margin:0 auto;padding:16px}
-button{font:inherit;border:0;border-radius:10px;padding:10px 14px;cursor:pointer;background:var(--vino);color:#fff}
-button.sec{background:transparent;color:var(--ink);border:1px solid var(--line)}button:disabled{opacity:.4;cursor:default}
-.card{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:14px;margin-bottom:12px}
-.row{display:flex;gap:10px;align-items:center;flex-wrap:wrap}.grow{flex:1;min-width:160px}
-.muted{color:var(--muted);font-size:14px}h2{font-size:17px;margin:22px 0 10px}
-.calici{font-size:28px;font-weight:700;min-width:70px;text-align:center}
-.big{font-size:22px;padding:8px 18px}.badge{padding:2px 8px;border-radius:8px;font-size:12px;color:#fff}
-.ok{background:var(--ok)}.attenzione{background:var(--warn)}.scaduta{background:var(--bad)}
-.finita{opacity:.75;border-style:dashed}.face{font-size:34px}
-select,input{font:inherit;padding:9px;border-radius:10px;border:1px solid var(--line);background:var(--card);color:var(--ink)}
-dialog{border:0;border-radius:14px;max-width:520px;width:calc(100% - 32px);background:var(--card);color:var(--ink)}
-table{width:100%;border-collapse:collapse;font-size:14px}td,th{padding:6px;border-bottom:1px solid var(--line);text-align:left}
+:root{
+  --bg:#f6f2ec; --card:#fff; --ink:#1b1918; --muted:#7c736c; --line:#e8e1d8; --soft:#f1ebe3;
+  --accent:#cf4731; --accent-ink:#fff; --accent-soft:#fbe9e5;
+  --ok:#2f7d4f; --ok-soft:#e5f2ea; --warn:#b97300; --warn-soft:#fdf1dc; --bad:#c0392b; --bad-soft:#fbe4e1;
+  --radius:16px; --shadow:0 1px 2px rgba(27,25,24,.04),0 4px 16px rgba(27,25,24,.06);
+  --serif:"Cormorant Garamond",Georgia,serif; --sans:Inter,system-ui,-apple-system,"Segoe UI",sans-serif;
+}
+*{box-sizing:border-box}
+html,body{margin:0;background:var(--bg);color:var(--ink);font-family:var(--sans);font-size:15px;-webkit-font-smoothing:antialiased}
+svg.i{width:20px;height:20px;stroke:currentColor;fill:none;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round;flex:none}
+button{font:inherit;cursor:pointer;border:0;border-radius:12px;padding:10px 16px;display:inline-flex;align-items:center;justify-content:center;gap:8px;font-weight:600;transition:transform .08s,background .15s}
+button:active{transform:scale(.97)}button:disabled{opacity:.4;cursor:default}
+.btn{background:var(--ink);color:#fff}.btn-accent{background:var(--accent);color:var(--accent-ink)}
+.btn-ghost{background:var(--card);color:var(--ink);border:1px solid var(--line)}.btn-ghost:hover{background:var(--soft)}
+.btn-sm{padding:7px 12px;font-size:13px;border-radius:10px}
+input,select{font:inherit;padding:11px 12px;border-radius:12px;border:1px solid var(--line);background:var(--card);color:var(--ink);width:100%}
+input:focus,select:focus{outline:2px solid var(--accent);outline-offset:-1px;border-color:transparent}
+
+header{position:sticky;top:0;z-index:20;background:rgba(246,242,236,.92);backdrop-filter:blur(10px);border-bottom:1px solid var(--line)}
+.bar{max-width:1100px;margin:0 auto;padding:12px 16px;display:flex;align-items:center;gap:14px}
+.brand{display:flex;align-items:center;gap:12px;min-width:0}
+.brand img{height:30px;display:block}
+.brand span{font-family:var(--serif);font-size:20px;font-weight:600;color:var(--muted);white-space:nowrap;border-left:1px solid var(--line);padding-left:12px}
+.spacer{flex:1}
+.chip-user{display:flex;align-items:center;gap:8px;font-weight:500;font-size:14px}
+.avatar{width:32px;height:32px;border-radius:50%;background:var(--ink);color:#fff;display:grid;place-items:center;font-weight:700;font-size:13px;flex:none}
+.demo{background:var(--warn-soft);color:var(--warn);font-size:12px;font-weight:600;padding:4px 10px;border-radius:99px}
+nav{max-width:1100px;margin:0 auto;padding:0 12px;display:flex;gap:4px;overflow-x:auto}
+nav button{background:none;color:var(--muted);border-radius:0;padding:12px 14px;border-bottom:2px solid transparent;font-weight:600;position:relative;white-space:nowrap}
+nav button.on{color:var(--ink);border-bottom-color:var(--accent)}
+nav .count{background:var(--accent);color:#fff;font-size:11px;border-radius:99px;padding:1px 6px;min-width:18px}
+main{max-width:1100px;margin:0 auto;padding:20px 16px 110px}
+h2{font-family:var(--serif);font-size:28px;font-weight:600;margin:6px 0 14px;letter-spacing:.2px}
+h3{font-size:13px;margin:22px 0 10px;color:var(--muted);text-transform:uppercase;letter-spacing:.8px;font-weight:600}
+.muted{color:var(--muted)}.small{font-size:13px}
+.card{background:var(--card);border:1px solid var(--line);border-radius:var(--radius);box-shadow:var(--shadow);padding:16px}
+.row{display:flex;gap:10px;align-items:center;flex-wrap:wrap}
+.pill{display:inline-flex;align-items:center;gap:5px;font-size:12px;font-weight:600;padding:3px 9px;border-radius:99px;white-space:nowrap}
+.pill svg.i{width:14px;height:14px}
+.p-ok{background:var(--ok-soft);color:var(--ok)}.p-warn{background:var(--warn-soft);color:var(--warn)}.p-bad{background:var(--bad-soft);color:var(--bad)}.p-neutral{background:var(--soft);color:var(--muted)}
+.empty{text-align:center;padding:36px 16px;color:var(--muted)}
+.empty svg.i{width:40px;height:40px;stroke-width:1.3;margin-bottom:8px;color:#c9bfb4}
+.tab[hidden]{display:none}
+
+.stats{display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:10px;margin-bottom:16px}
+.stat{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:12px 14px;display:flex;gap:12px;align-items:center}
+.stat .ico{width:38px;height:38px;border-radius:11px;display:grid;place-items:center;background:var(--soft);flex:none}
+.stat b{font-size:20px;display:block;line-height:1.1}.stat small{color:var(--muted);font-size:12px}
+
+.grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(330px,1fr));gap:14px}
+.bottle{position:relative;overflow:hidden;display:flex;flex-direction:column;gap:12px}
+.bottle::before{content:"";position:absolute;left:0;top:0;bottom:0;width:4px;background:var(--ok)}
+.bottle.attenzione::before{background:var(--warn)}.bottle.scaduta::before{background:var(--bad)}
+.bottle .name{font-family:var(--serif);font-size:22px;font-weight:700;line-height:1.15}
+.meta{display:flex;flex-wrap:wrap;gap:6px 12px;font-size:13px;color:var(--muted)}
+.meta span{display:inline-flex;align-items:center;gap:5px}.meta svg.i{width:15px;height:15px}
+.glasses{display:flex;align-items:center;gap:3px}
+.glasses svg{width:26px;height:26px}
+.glasses .g-full{color:var(--accent)}.glasses .g-empty{color:#d9d0c6}
+.glasses .extra{font-weight:700;color:var(--bad);margin-left:4px}
+.count-big{font-size:30px;font-weight:700;line-height:1}.count-big small{font-size:14px;color:var(--muted);font-weight:500}
+.cassa{display:flex;align-items:center;gap:8px;flex-wrap:wrap;background:var(--soft);border-radius:12px;padding:8px 10px;font-size:13px}
+.cassa svg.i{width:16px;height:16px}
+.actions{display:grid;grid-template-columns:56px 1fr auto;gap:8px}
+.actions .minus{background:var(--soft);color:var(--ink);font-size:22px;padding:0;height:52px}
+.actions .plus{height:52px;font-size:17px}
+.actions .done{height:52px}
+
+.list{display:flex;flex-direction:column;gap:10px}
+.item{display:flex;gap:14px;align-items:center;flex-wrap:wrap}
+.face{font-size:28px;line-height:1}
+.item .t{font-weight:600}.item .grow{flex:1;min-width:160px}
+.order-lines{display:flex;flex-direction:column;gap:6px;margin-top:8px}
+.order-lines div{display:flex;gap:8px;align-items:center;flex-wrap:wrap;font-size:14px}
+.qty{background:var(--ink);color:#fff;border-radius:8px;font-size:12px;font-weight:700;padding:2px 7px}
+
+/* dashboard */
+.dash{display:grid;grid-template-columns:1.2fr 1fr;gap:14px}
+.hbar{display:grid;grid-template-columns:minmax(90px,38%) 1fr 34px;gap:10px;align-items:center;font-size:14px;margin:7px 0}
+.hbar .lbl{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.hbar .trk{background:var(--soft);border-radius:6px;height:14px;overflow:hidden}
+.hbar .fill{background:var(--accent);height:100%;border-radius:6px}
+.hbar .v{text-align:right;font-weight:700}
+.cols{display:flex;align-items:flex-end;gap:8px;height:170px;padding-top:18px}
+.col{flex:1;display:flex;flex-direction:column;align-items:center;gap:6px;height:100%;justify-content:flex-end;min-width:0}
+.col .b{width:100%;max-width:44px;background:var(--ink);border-radius:6px 6px 2px 2px;min-height:2px;position:relative}
+.col .b.hi{background:var(--accent)}
+.col .b span{position:absolute;top:-18px;left:50%;transform:translateX(-50%);font-size:11px;font-weight:700;white-space:nowrap}
+.col small{font-size:11px;color:var(--muted);white-space:nowrap}
+
+dialog{border:0;border-radius:22px;padding:0;width:min(560px,calc(100% - 24px));background:var(--card);color:var(--ink);box-shadow:0 20px 60px rgba(0,0,0,.25)}
+dialog::backdrop{background:rgba(27,25,24,.45);backdrop-filter:blur(2px)}
+.dlg{padding:22px;display:flex;flex-direction:column;gap:14px}
+.dlg h3{margin:0;color:var(--ink);text-transform:none;letter-spacing:0;font-family:var(--serif);font-size:26px;font-weight:600}
+.dlg .foot{display:flex;gap:8px;justify-content:flex-end;flex-wrap:wrap}
+.wine-list{max-height:46vh;overflow:auto;display:flex;flex-direction:column;gap:6px}
+.wine{display:flex;align-items:center;gap:12px;padding:10px 12px;border:1px solid var(--line);border-radius:12px;background:var(--card);text-align:left;font-weight:500;width:100%;justify-content:flex-start;color:var(--ink)}
+.wine:hover{background:var(--soft)}.wine.sel{border-color:var(--accent);background:var(--accent-soft)}
+.wine .grow{flex:1;min-width:0}.wine .n{font-weight:600}
+.alert{display:flex;gap:10px;align-items:flex-start;background:var(--warn-soft);color:#6b4500;border-radius:12px;padding:12px;font-size:14px}
+.big-face{font-size:56px;text-align:center}
+.kv{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.kv div{background:var(--soft);border-radius:12px;padding:10px 12px}.kv b{font-size:22px;display:block}.kv small{color:var(--muted)}
+
+#toast{position:fixed;left:50%;bottom:90px;transform:translateX(-50%) translateY(20px);opacity:0;pointer-events:none;background:var(--ink);color:#fff;padding:12px 18px;border-radius:12px;font-weight:500;transition:.25s;z-index:60;max-width:calc(100% - 32px);box-shadow:var(--shadow)}
+#toast.show{opacity:1;transform:translateX(-50%) translateY(0)}#toast.err{background:var(--bad)}
+
+@media (max-width:860px){.dash{grid-template-columns:1fr}}
+@media (max-width:720px){
+  header{backdrop-filter:none;-webkit-backdrop-filter:none;background:var(--bg)}
+  .stats{grid-template-columns:1fr 1fr}.stat{padding:10px}.stat .ico{width:32px;height:32px}
+  .brand span{display:none}.chip-user .nm{display:none}
+  nav{position:fixed;bottom:0;left:0;right:0;background:var(--card);border-top:1px solid var(--line);padding:6px 6px calc(6px + env(safe-area-inset-bottom));justify-content:space-around;z-index:30}
+  nav button{flex-direction:column;gap:2px;font-size:11px;padding:6px 2px;border-bottom:0;flex:1}
+  nav button.on{color:var(--accent)}
+  nav .count{position:absolute;top:2px;right:calc(50% - 22px)}
+  .grid{grid-template-columns:1fr}
+  h2{font-size:24px}
+}
 </style>
 </head>
 <body>
-<header><h1>🍷 Mescita a calice</h1><div class="row"><span id="demo"></span><span id="utente" style="font-size:14px"></span><button class="sec" style="color:#fff;border-color:#fff6;padding:6px 10px" onclick="esci()">Esci</button></div></header>
+<header>
+  <div class="bar">
+    <div class="brand"><img src="/static/logo-dvor.png" alt="DVOR"><span>Mescita a calice</span></div>
+    <div class="spacer"></div>
+    <span id="demo"></span>
+    <div class="chip-user"><div class="avatar" id="avatar">·</div><span class="nm" id="utente"></span></div>
+    <button class="btn-ghost btn-sm" onclick="esci()" title="Esci" aria-label="Esci"><svg class="i"><use href="#i-logout"/></svg></button>
+  </div>
+  <nav id="nav">
+    <button data-tab="bottiglie" class="on"><svg class="i"><use href="#i-glass"/></svg>Bottiglie</button>
+    <button data-tab="cassa"><svg class="i"><use href="#i-receipt"/></svg>Cassa <span class="count" id="nDa" hidden></span></button>
+    <button data-tab="storico"><svg class="i"><use href="#i-history"/></svg>Storico</button>
+    <button data-tab="dashboard" class="solo-admin" hidden><svg class="i"><use href="#i-chart"/></svg>Dashboard</button>
+    <button data-tab="gestione" class="solo-admin" hidden><svg class="i"><use href="#i-users"/></svg>Dipendenti</button>
+  </nav>
+</header>
+
 <main>
-  <h2>Apri una bottiglia dallo stock Odoo</h2>
-  <div class="card row">
-    <select id="vino" class="grow" onchange="aggCategoria()"></select>
-    <select id="categoria" class="grow"></select>
-    <button onclick="apriBottiglia()">Apri bottiglia</button>
-  </div>
-
-  <h2>Bottiglie aperte</h2>
-  <div id="aperte"></div>
-
-  <h2>Calici in cassa (aggiornato ogni 30 s) <button class="sec" onclick="caricaPos()" style="padding:4px 10px">↻</button></h2>
-  <div class="card"><table><thead><tr><th>Ordine</th><th>Tavolo</th><th>Stato</th><th>Calici</th></tr></thead><tbody id="ordini"></tbody></table>
-    <p class="muted" style="margin:8px 0 0">Gli ordini compaiono quando la cassa li sincronizza con Odoo (invio in cucina, cambio tavolo o pagamento).</p></div>
-
-  <h2>Storico bottiglie finite</h2>
-  <div class="card"><table><thead><tr><th></th><th>Vino</th><th>Calici</th><th>Giorni</th><th>Chiusa il</th><th>Chi</th><th>Odoo</th></tr></thead><tbody id="storico"></tbody></table></div>
-  <h2>Calici da abbinare</h2>
-  <div class="card">
-    <p class="muted" style="margin:0 0 8px">Ogni calice viene assegnato in automatico alla bottiglia aperta che contiene nel nome il produttore scelto in cassa (attributo "Produttore"). Qui trovi quelli che l'app non riesce ad assegnare da sola.</p>
-    <table><tbody id="daAbbinare"></tbody></table>
-    <h3 style="font-size:15px;margin:14px 0 6px">Abbinamenti manuali</h3>
-    <table><tbody id="abbList"></tbody></table>
-  </div>
-  <section id="adminBox" hidden>
-    <h2>Dipendenti</h2>
-    <div class="card">
-      <div class="row">
-        <input id="uNome" class="grow" placeholder="Nome">
-        <input id="uPin" placeholder="PIN (4-8 cifre)" inputmode="numeric" style="width:150px">
-        <select id="uRuolo"><option value="dipendente">Dipendente</option><option value="admin">Amministratore</option></select>
-        <button onclick="aggUtente()">Aggiungi</button>
-      </div>
-      <table style="margin-top:10px"><tbody id="utenti"></tbody></table>
+  <section class="tab" id="tab-bottiglie">
+    <div class="row" style="justify-content:space-between;margin-bottom:6px">
+      <h2>Bottiglie aperte</h2>
+      <button class="btn-accent" onclick="apriDialogo()"><svg class="i"><use href="#i-plus"/></svg>Apri bottiglia</button>
     </div>
+    <div class="stats" id="stats"></div>
+    <div class="grid" id="aperte"></div>
+  </section>
+
+  <section class="tab" id="tab-cassa" hidden>
+    <div class="row" style="justify-content:space-between">
+      <h2>Calici in cassa</h2>
+      <button class="btn-ghost btn-sm" onclick="caricaPos()"><svg class="i"><use href="#i-refresh"/></svg>Aggiorna</button>
+    </div>
+    <p class="muted small" style="margin-top:-6px">Si aggiorna da solo ogni 30 secondi. Un ordine compare quando la cassa lo sincronizza con Odoo (invio in cucina, cambio tavolo o pagamento).</p>
+    <div class="list" id="ordini"></div>
+    <h3>Calici da abbinare</h3>
+    <p class="muted small" style="margin-top:-4px">Ogni calice va da solo sulla bottiglia aperta che contiene nel nome il produttore scelto in cassa. Qui trovi quelli che l'app non riesce ad assegnare.</p>
+    <div class="list" id="daAbbinare"></div>
+    <h3>Abbinamenti manuali</h3>
+    <div class="list" id="abbList"></div>
+  </section>
+
+  <section class="tab" id="tab-storico" hidden>
+    <h2>Bottiglie finite</h2>
+    <div class="list" id="storico"></div>
+  </section>
+
+  <section class="tab" id="tab-dashboard" hidden>
+    <div class="row" style="justify-content:space-between">
+      <h2>Dashboard</h2>
+      <select id="periodo" style="width:auto" onchange="caricaDash()">
+        <option value="4">Ultime 4 settimane</option><option value="8" selected>Ultime 8 settimane</option><option value="12">Ultime 12 settimane</option><option value="26">Ultimi 6 mesi</option>
+      </select>
+    </div>
+    <p class="muted small" id="fonte" style="margin-top:-6px"></p>
+    <div class="stats" id="kpi"></div>
+    <div class="dash">
+      <div class="card"><h3 style="margin-top:0">Calici più venduti</h3><div id="top"></div></div>
+      <div class="card"><h3 style="margin-top:0">Media calici per giorno della settimana</h3><div class="cols" id="giorni"></div></div>
+    </div>
+    <div class="card" style="margin-top:14px"><h3 style="margin-top:0">Calici per settimana</h3><div class="cols" id="settimane"></div></div>
+  </section>
+
+  <section class="tab" id="tab-gestione" hidden>
+    <h2>Dipendenti</h2>
+    <div class="card" style="margin-bottom:14px">
+      <div class="row">
+        <input id="uNome" placeholder="Nome" style="flex:2;min-width:160px">
+        <input id="uPin" placeholder="PIN (4-8 cifre)" inputmode="numeric" style="flex:1;min-width:130px">
+        <select id="uRuolo" style="flex:1;min-width:150px"><option value="dipendente">Dipendente</option><option value="admin">Amministratore</option></select>
+        <button class="btn" onclick="aggUtente()"><svg class="i"><use href="#i-user-plus"/></svg>Aggiungi</button>
+      </div>
+    </div>
+    <div class="list" id="utenti"></div>
   </section>
 </main>
 
-<dialog id="riep"><div id="riepBody"></div></dialog>
+<dialog id="dlg"><div class="dlg" id="dlgBody"></div></dialog>
+<div id="toast"></div>
+
+<svg width="0" height="0" style="position:absolute" aria-hidden="true">
+  <symbol id="i-glass" viewBox="0 0 24 24"><path d="M8 22h8M12 15v7M7 2h10l1 6a6 6 0 0 1-12 0z"/></symbol>
+  <symbol id="i-glass-fill" viewBox="0 0 24 24"><path d="M7 2h10l1 6a6 6 0 0 1-12 0z" fill="currentColor" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/><path d="M8 22h8M12 15v7" stroke="currentColor" fill="none" stroke-width="1.8" stroke-linecap="round"/></symbol>
+  <symbol id="i-glass-empty" viewBox="0 0 24 24"><path d="M7 2h10l1 6a6 6 0 0 1-12 0zM8 22h8M12 15v7" stroke="currentColor" fill="none" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></symbol>
+  <symbol id="i-bottle" viewBox="0 0 24 24"><path d="M10 2h4M10 2v5l-2 3v11a1 1 0 0 0 1 1h6a1 1 0 0 0 1-1V10l-2-3V2M8 13h8"/></symbol>
+  <symbol id="i-receipt" viewBox="0 0 24 24"><path d="M5 2v20l3-2 2 2 2-2 2 2 2-2 3 2V2l-3 2-2-2-2 2-2-2-2 2zM9 8h6M9 12h6M9 16h4"/></symbol>
+  <symbol id="i-history" viewBox="0 0 24 24"><path d="M3 12a9 9 0 1 0 3-6.7L3 8M3 3v5h5M12 7v5l3 3"/></symbol>
+  <symbol id="i-chart" viewBox="0 0 24 24"><path d="M3 3v18h18M8 17v-5M13 17V8M18 17v-9"/></symbol>
+  <symbol id="i-users" viewBox="0 0 24 24"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2M9 11a4 4 0 1 0 0-8 4 4 0 0 0 0 8M22 21v-2a4 4 0 0 0-3-3.9M16 3.1a4 4 0 0 1 0 7.8"/></symbol>
+  <symbol id="i-user" viewBox="0 0 24 24"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2M12 11a4 4 0 1 0 0-8 4 4 0 0 0 0 8"/></symbol>
+  <symbol id="i-user-plus" viewBox="0 0 24 24"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2M9 11a4 4 0 1 0 0-8 4 4 0 0 0 0 8M19 8v6M22 11h-6"/></symbol>
+  <symbol id="i-plus" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></symbol>
+  <symbol id="i-check" viewBox="0 0 24 24"><path d="M20 6 9 17l-5-5"/></symbol>
+  <symbol id="i-clock" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></symbol>
+  <symbol id="i-alert" viewBox="0 0 24 24"><path d="M10.3 3.9 1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0zM12 9v4M12 17h.01"/></symbol>
+  <symbol id="i-euro" viewBox="0 0 24 24"><path d="M4 10h12M4 14h9M19 6a7.7 7.7 0 0 0-5.2-2A7.9 7.9 0 0 0 6 12c0 4.4 3.5 8 7.8 8 2 0 3.8-.8 5.2-2"/></symbol>
+  <symbol id="i-refresh" viewBox="0 0 24 24"><path d="M21 12a9 9 0 0 1-15.5 6.3L3 16M3 12a9 9 0 0 1 15.5-6.3L21 8M21 3v5h-5M3 21v-5h5"/></symbol>
+  <symbol id="i-logout" viewBox="0 0 24 24"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4M16 17l5-5-5-5M21 12H9"/></symbol>
+  <symbol id="i-link" viewBox="0 0 24 24"><path d="M10 13a5 5 0 0 0 7.5.5l3-3a5 5 0 0 0-7-7l-1.7 1.7M14 11a5 5 0 0 0-7.5-.5l-3 3a5 5 0 0 0 7 7l1.7-1.7"/></symbol>
+  <symbol id="i-search" viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><path d="m21 21-4.3-4.3"/></symbol>
+  <symbol id="i-cloud" viewBox="0 0 24 24"><path d="M17.5 19H8a6 6 0 1 1 1.7-11.8A7 7 0 0 1 22 12.5 4.5 4.5 0 0 1 17.5 19z"/><path d="m9 13 2 2 4-4"/></symbol>
+  <symbol id="i-key" viewBox="0 0 24 24"><circle cx="7.5" cy="15.5" r="4.5"/><path d="m21 2-9.6 9.6M15.5 7.5l3 3L22 7l-3-3"/></symbol>
+  <symbol id="i-smile" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M8 14s1.5 2 4 2 4-2 4-2M9 9h.01M15 9h.01"/></symbol>
+  <symbol id="i-x" viewBox="0 0 24 24"><path d="M18 6 6 18M6 6l12 12"/></symbol>
+</svg>
 
 <script>
-let INFO, STOCK = [], SESS = null;
 const $ = id => document.getElementById(id);
+const ic = n => `<svg class="i"><use href="#i-${n}"/></svg>`;
+const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const attr = o => esc(JSON.stringify(o));
+const euro = n => n == null ? '' : Number(n).toLocaleString('it-IT', {style:'currency', currency:'EUR'});
+const faccia = f => f === 'sorridente' ? '😊' : '😠';
+const data = d => d ? new Date(d).toLocaleDateString('it-IT', {day:'numeric', month:'short'}) : '';
+let INFO, ME, STOCK = [], BOTT = [], APERTE = [], ULTIMA_POS = null;
+
+function toast(msg, err){ const t = $('toast'); t.textContent = msg; t.className = 'show' + (err ? ' err' : ''); clearTimeout(t._h); t._h = setTimeout(() => t.className = '', 3200); }
 const api = async (url, body, opz = {}) => {
-  const r = await fetch(url, body === undefined ? {} : {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(body)});
+  const r = await fetch(url, body === undefined ? {method: opz.method || 'GET'} : {method: opz.method || 'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(body)});
   if (r.status === 401) { location.href = '/login'; throw new Error('login'); }
   const j = await r.json();
-  if (!r.ok) { if (!(opz.silenzia || []).includes(r.status)) alert(j.detail || 'Errore'); j.status = r.status; throw j; }
+  if (!r.ok) { if (!(opz.silenzia || []).includes(r.status)) toast(j.detail || 'Errore', true); j.status = r.status; throw j; }
   return j;
 };
-let ME = null;
 async function esci(){ await fetch('/api/logout', {method:'POST'}); location.href = '/login'; }
-const euro = n => n == null ? '' : n.toLocaleString('it-IT', {style:'currency', currency:'EUR'});
-const faccia = f => f === 'sorridente' ? '😊' : '😠';
-const esc = s => String(s).replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+function dialogo(html){ $('dlgBody').innerHTML = html; if (!$('dlg').open) $('dlg').showModal(); }
+const chiudiDlg = () => $('dlg').close();
+$('dlg').addEventListener('click', e => { if (e.target === $('dlg')) chiudiDlg(); });
+
+function vai(tab){
+  document.querySelectorAll('nav button').forEach(b => b.classList.toggle('on', b.dataset.tab === tab));
+  document.querySelectorAll('.tab').forEach(s => s.hidden = s.id !== 'tab-' + tab);
+  if (tab === 'dashboard') caricaDash();
+  try { localStorage.setItem('tab', tab); } catch (e) {}
+}
+document.querySelectorAll('nav button').forEach(b => b.onclick = () => vai(b.dataset.tab));
 
 async function init(){
   INFO = await api('/api/info');
   ME = await api('/api/me');
-  $('utente').textContent = ME.nome + (ME.ruolo === 'admin' ? ' · amministratore' : '');
-  if (ME.ruolo === 'admin') { $('adminBox').hidden = false; caricaUtenti(); }
-  if (INFO.demo) $('demo').innerHTML = '<span class="demo">DEMO (Odoo non collegato)</span>';
-  $('categoria').innerHTML = Object.entries(INFO.categorie).map(([k,c]) => `<option value="${k}">${c.nome} (max ${c.max} gg)</option>`).join('');
-  await carica();
+  $('utente').textContent = ME.nome;
+  $('avatar').textContent = ME.nome.slice(0, 1).toUpperCase();
+  const admin = ME.ruolo === 'admin';
+  document.querySelectorAll('.solo-admin').forEach(b => b.hidden = !admin);
+  if (admin) caricaUtenti();
+  if (INFO.demo) $('demo').innerHTML = '<span class="demo">DEMO</span>';
+  let t = 'bottiglie'; try { t = localStorage.getItem('tab') || t; } catch (e) {}
+  if (!admin && (t === 'gestione' || t === 'dashboard')) t = 'bottiglie';
+  await carica(); vai(t); caricaAbb();
 }
 async function carica(){
   STOCK = await api('/api/stock');
-  $('vino').innerHTML = STOCK.map(v => `<option value="${v.id}">${esc(v.name)} — ${v.qty} in stock${v.prezzo ? ' · ' + euro(v.prezzo) : ''}${v.prezzo > INFO.soglia_prezzo ? ' 💶' : ''}</option>`).join('');
-  aggCategoria();
-  const ap = await api('/api/bottiglie'); BOTT = ap;
-  $('aperte').innerHTML = ap.length ? ap.map(b => `
-    <div class="card ${b.stato==='finita'?'finita':''}">
-      <div class="row">
-        <div class="grow"><b>${esc(b.nome)}</b><br>
-          <span class="muted">${esc(b.categoria_nome)} · aperta il ${b.aperta_il}${b.aperta_da ? ' da ' + esc(b.aperta_da) : ''} · da ${b.giorni} gg (max ${b.max_giorni})</span>
-          ${b.costosa ? `<span class="badge attenzione">💶 ${euro(b.prezzo)}</span>` : ''}
-          <span class="badge ${b.durata}">${{ok:'OK',attenzione:'Da finire presto',scaduta:'Oltre la durata!'}[b.durata]||''}</span>
-          <div class="muted pos" data-vino="${b.product_id}"></div></div>
-        <button class="sec big" onclick="calice(${b.id},-1)" ${b.stato==='finita'?'disabled':''}>−</button>
-        <div class="calici">${b.calici}<div class="muted" style="font-size:12px;font-weight:400">/ ${INFO.calici_per_bottiglia} calici</div></div>
-        <button class="big" onclick="calice(${b.id},1)" ${b.stato==='finita'?'disabled':''}>+ calice</button>
-        ${b.stato==='finita'
-          ? `<button class="sec" onclick="finita(${b.id})">Bottiglia finita</button>`
-          : `<button class="sec" onclick="finita(${b.id})">Bottiglia finita</button>`}
-      </div>
-    </div>`).join('') : '<div class="card muted">Nessuna bottiglia aperta.</div>';
-  caricaPos();
-  const st = await api('/api/storico');
-  $('storico').innerHTML = st.map(b => `<tr><td class="face" style="font-size:22px">${faccia(b.faccina)}</td><td>${esc(b.nome)}${b.costosa ? ' <span class="badge attenzione">💶 ' + euro(b.prezzo) + '</span>' : ''}</td><td>${b.calici}</td><td>${b.giorni_aperta}</td><td>${b.chiusa_il}</td><td class="muted">${b.aperta_da ? 'aperta: ' + esc(b.aperta_da) : ''}${b.chiusa_da ? '<br>chiusa: ' + esc(b.chiusa_da) : ''}</td><td>${b.scaricata_odoo ? `<span class="badge ok">OK</span> <span class="muted">${(b.scaricata_ts||'').replace('T',' ')}</span>` : `<span class="badge scaduta">Non sincronizzata</span> <button class="sec" style="padding:4px 10px" onclick="sincronizza(${b.id})">Riprova</button>`}</td></tr>`).join('') || '<tr><td colspan="7" class="muted">Ancora nessuna.</td></tr>';
+  BOTT = await api('/api/bottiglie');
+  disegnaBottiglie(); caricaPos(); caricaStorico();
 }
-const STATO = {draft:['Conto aperto','attenzione'], paid:['Pagato','ok'], done:['Pagato','ok'], invoiced:['Fatturato','ok']};
-let APERTE = [];
-async function caricaPos(){
-  const p = await api('/api/pos/calici');
-  APERTE = p.per_vino;
-  $('ordini').innerHTML = p.ordini.map(o => { const [t,c] = STATO[o.stato] || [o.stato,'ok'];
-    return `<tr><td>${esc(o.ordine)}</td><td>${esc(o.tavolo||'—')}</td><td><span class="badge ${c}">${t}</span></td><td>${o.righe.map(r =>
-      `${r.qty} × ${esc(r.calice)}${r.produttore ? ' · <b>' + esc(r.produttore) + '</b>' : ''} ${r.vino ? '→ ' + esc(r.vino) : '<span class="badge scaduta">' + esc(r.esito) + '</span>'}`).join('<br>')}</td></tr>`; }).join('')
-    || '<tr><td colspan="4" class="muted">Nessun calice battuto in cassa da quando sono aperte le bottiglie.</td></tr>';
-  for (const v of p.per_vino) document.querySelectorAll(`.pos[data-vino="${v.vino_product_id}"]`).forEach(el => {
-    const diff = v.differenza === 0 ? '<span class="badge ok">coincide</span>'
-      : `<span class="badge scaduta">${v.differenza > 0 ? '+' : ''}${v.differenza} rispetto all'app</span>`;
-    el.innerHTML = `Cassa: <b>${v.calici_cassa}</b> calici${v.calici_aperti ? ` (${v.calici_aperti} su conti aperti)` : ''} ${diff}${v.bottiglie > 1 ? ' · totale di ' + v.bottiglie + ' bottiglie' : ''}`;
+
+// ---------------- bottiglie aperte
+const DURATA = {ok:['p-ok','Fresca'], attenzione:['p-warn','Da finire presto'], scaduta:['p-bad','Oltre la durata']};
+function bicchieri(n){
+  const max = INFO.calici_per_bottiglia, out = [];
+  for (let i = 0; i < max; i++) out.push(`<svg class="${i < n ? 'g-full' : 'g-empty'}"><use href="#i-glass-${i < n ? 'fill' : 'empty'}"/></svg>`);
+  return `<div class="glasses" title="${n} calici">${out.join('')}${n > max ? `<span class="extra">+${n - max}</span>` : ''}</div>`;
+}
+function disegnaBottiglie(){
+  const scad = BOTT.filter(b => b.durata === 'scaduta').length, att = BOTT.filter(b => b.durata === 'attenzione').length;
+  const calici = BOTT.reduce((s, b) => s + b.calici, 0);
+  $('stats').innerHTML = `
+    <div class="stat"><div class="ico">${ic('bottle')}</div><div><b>${BOTT.length}</b><small>bottiglie aperte</small></div></div>
+    <div class="stat"><div class="ico">${ic('glass')}</div><div><b>${calici}</b><small>calici sulle aperte</small></div></div>
+    <div class="stat"><div class="ico" style="background:var(--warn-soft);color:var(--warn)">${ic('clock')}</div><div><b>${att}</b><small>da finire presto</small></div></div>
+    <div class="stat"><div class="ico" style="background:var(--bad-soft);color:var(--bad)">${ic('alert')}</div><div><b>${scad}</b><small>oltre la durata</small></div></div>`;
+  $('aperte').innerHTML = BOTT.length ? BOTT.map(b => {
+    const [dc, dt] = DURATA[b.durata] || ['p-neutral', ''];
+    return `<article class="card bottle ${b.durata}">
+      <div>
+        <div class="row" style="justify-content:space-between;align-items:flex-start;flex-wrap:nowrap">
+          <div class="name">${esc(b.nome)}</div><span class="pill ${dc}">${dt}</span>
+        </div>
+        <div class="meta" style="margin-top:6px">
+          <span>${esc(b.categoria_nome)}</span>
+          <span>${ic('clock')}${b.giorni === 0 ? 'aperta oggi' : 'aperta da ' + b.giorni + ' gg'} · max ${b.max_giorni}</span>
+          ${b.aperta_da ? `<span>${ic('user')}${esc(b.aperta_da)}</span>` : ''}
+          ${b.costosa ? `<span class="pill p-warn">${ic('euro')}${euro(b.prezzo)}</span>` : ''}
+        </div>
+      </div>
+      <div class="row" style="justify-content:space-between">${bicchieri(b.calici)}<div class="count-big">${b.calici}<small> / ${INFO.calici_per_bottiglia}</small></div></div>
+      <div class="cassa pos" data-vino="${b.product_id}">${ic('receipt')}<span class="muted">Cassa: in caricamento…</span></div>
+      <div class="actions">
+        <button class="minus" onclick="calice(${b.id},-1)" aria-label="Togli un calice">−</button>
+        <button class="btn-accent plus" onclick="calice(${b.id},1)">${ic('plus')}Calice</button>
+        <button class="btn-ghost done" onclick="finita(${b.id})">${ic('check')}Finita</button>
+      </div>
+    </article>`; }).join('')
+    : `<div class="card empty" style="grid-column:1/-1">${ic('bottle')}<div><b>Nessuna bottiglia aperta</b></div><div class="small">Premi "Apri bottiglia" per iniziare a servire al calice.</div></div>`;
+  if (ULTIMA_POS) disegnaCassaSuBottiglie(ULTIMA_POS);
+}
+async function calice(id, d){
+  try { const b = await api(`/api/bottiglie/${id}/calice`, {delta:d}); BOTT = BOTT.map(x => x.id === id ? b : x); disegnaBottiglie(); } catch (e) {}
+}
+
+// ---------------- apri bottiglia
+let SCELTO = null;
+function apriDialogo(){
+  SCELTO = null;
+  dialogo(`<h3>Apri bottiglia</h3>
+    <div style="position:relative"><span style="position:absolute;left:12px;top:11px;color:var(--muted)">${ic('search')}</span>
+      <input id="cerca" placeholder="Cerca un vino…" style="padding-left:40px" oninput="filtraVini()" autocomplete="off"></div>
+    <div class="wine-list" id="vini"></div>
+    <label class="small muted">Durata dopo l'apertura
+      <select id="categoria" style="margin-top:4px">${Object.entries(INFO.categorie).map(([k, c]) => `<option value="${k}">${esc(c.nome)} · max ${c.max} gg</option>`).join('')}</select></label>
+    <div id="avvisoPrezzo"></div>
+    <div class="foot"><button class="btn-ghost" onclick="chiudiDlg()">Annulla</button><button class="btn-accent" id="btnApri" onclick="apriBottiglia()" disabled>${ic('bottle')}Apri</button></div>`);
+  filtraVini(); setTimeout(() => $('cerca').focus(), 50);
+}
+function filtraVini(){
+  const q = ($('cerca').value || '').toLowerCase();
+  const vv = STOCK.filter(v => v.name.toLowerCase().includes(q));
+  $('vini').innerHTML = vv.map(v => `<button class="wine ${SCELTO && SCELTO.id === v.id ? 'sel' : ''}" onclick="scegli(${v.id})">
+      ${ic('bottle')}<div class="grow"><div class="n">${esc(v.name)}</div><div class="small muted">${v.qty} in stock${v.prezzo ? ' · ' + euro(v.prezzo) : ''}</div></div>
+      ${v.prezzo > INFO.soglia_prezzo ? `<span class="pill p-warn">${ic('euro')}oltre ${euro(INFO.soglia_prezzo)}</span>` : ''}</button>`).join('')
+    || `<div class="empty small">Nessun vino trovato</div>`;
+}
+function scegli(id){
+  SCELTO = STOCK.find(v => v.id === id); filtraVini();
+  if (SCELTO.categoria) $('categoria').value = SCELTO.categoria;
+  const caro = SCELTO.prezzo > INFO.soglia_prezzo;
+  $('btnApri').disabled = false;
+  $('avvisoPrezzo').innerHTML = caro ? `<div class="alert">${ic('alert')}<div><b>Bottiglia costosa: ${euro(SCELTO.prezzo)}</b><br>Supera ${euro(INFO.soglia_prezzo)}. Se confermi, l'apertura viene registrata a nome di <b>${esc(ME.nome)}</b>.</div></div>` : '';
+  $('btnApri').innerHTML = caro ? `${ic('alert')}Confermo, apri` : `${ic('bottle')}Apri`;
+}
+async function apriBottiglia(){
+  if (!SCELTO) return;
+  const dati = {product_id:SCELTO.id, nome:SCELTO.name, categoria:$('categoria').value, conferma_prezzo:SCELTO.prezzo > INFO.soglia_prezzo};
+  try { await api('/api/bottiglie', dati, {silenzia:[409]}); }
+  catch (e) { if (e.status === 409) { SCELTO.prezzo = e.prezzo; scegli(SCELTO.id); } return; }
+  chiudiDlg(); toast(`${SCELTO.name} aperta`); carica();
+}
+
+// ---------------- bottiglia finita (controllo umano)
+function finita(id){
+  const b = BOTT.find(x => x.id === id); if (!b) return;
+  const v = APERTE.find(x => x.vino_product_id === b.product_id);
+  dialogo(`<h3>${esc(b.nome)} è finita?</h3>
+    <div class="big-face">${faccia(b.faccina_prevista)}</div>
+    <div class="kv">
+      <div><small>Calici segnati</small><b>${b.calici} / ${INFO.calici_per_bottiglia}</b></div>
+      <div><small>Calici in cassa${v && v.bottiglie > 1 ? ' (' + v.bottiglie + ' bottiglie)' : ''}</small><b>${v ? v.calici_cassa : '—'}</b></div>
+    </div>
+    <p class="muted small" style="margin:0">Aperta ${b.giorni === 0 ? 'oggi' : 'da ' + b.giorni + ' giorni'}${b.aperta_da ? ' da ' + esc(b.aperta_da) : ''}. Confermando, 1 bottiglia viene scaricata subito dall'inventario Odoo.</p>
+    <div class="foot"><button class="btn-ghost" onclick="chiudiDlg()">Annulla</button><button class="btn" id="btnConf" onclick="confermaFinita(${b.id})">${ic('cloud')}Conferma e scarica da Odoo</button></div>`);
+}
+async function confermaFinita(id){
+  $('btnConf').disabled = true;
+  try {
+    const b = await api(`/api/bottiglie/${id}/chiudi`, {});
+    dialogo(`<div class="big-face">${faccia(b.faccina)}</div><h3 style="text-align:center">${esc(b.nome)} chiusa</h3>
+      <p class="muted" style="text-align:center;margin:0">${b.calici} calici su ${INFO.calici_per_bottiglia} · aperta ${b.giorni_aperta} gg · scaricata da Odoo</p>
+      <div class="foot" style="justify-content:center"><button class="btn" onclick="chiudiDlg()">OK</button></div>`);
+  } catch (e) { $('btnConf').disabled = false; }
+  carica();
+}
+
+// ---------------- cassa
+const STATO = {draft:['Conto aperto','p-warn'], paid:['Pagato','p-ok'], done:['Pagato','p-ok'], invoiced:['Fatturato','p-ok']};
+function disegnaCassaSuBottiglie(p){
+  document.querySelectorAll('.pos').forEach(el => {
+    const v = p.per_vino.find(x => x.vino_product_id == el.dataset.vino); if (!v) return;
+    const diff = v.differenza === 0 ? `<span class="pill p-ok">${ic('check')}coincide</span>` : `<span class="pill p-bad">${v.differenza > 0 ? '+' : ''}${v.differenza} rispetto all'app</span>`;
+    el.innerHTML = `${ic('receipt')}<span>Cassa <b>${v.calici_cassa}</b>${v.calici_aperti ? ` <span class="muted">(${v.calici_aperti} su conti aperti)</span>` : ''}</span>${diff}${v.bottiglie > 1 ? `<span class="muted">· ${v.bottiglie} bottiglie</span>` : ''}`;
   });
+}
+async function caricaPos(){
+  let p; try { p = await api('/api/pos/calici', undefined, {silenzia:[500, 502]}); } catch (e) { return; }
+  ULTIMA_POS = p; APERTE = p.per_vino;
+  disegnaCassaSuBottiglie(p);
+  $('ordini').innerHTML = p.ordini.map(o => { const [t, c] = STATO[o.stato] || [o.stato, 'p-neutral'];
+    return `<div class="card"><div class="row" style="justify-content:space-between"><div class="row"><b>${esc(o.ordine)}</b>${o.tavolo ? `<span class="pill p-neutral">Tavolo ${esc(o.tavolo)}</span>` : ''}</div><span class="pill ${c}">${t}</span></div>
+      <div class="order-lines">${o.righe.map(r => `<div><span class="qty">${r.qty}×</span>${esc(r.calice)}${r.produttore ? ` · <b>${esc(r.produttore)}</b>` : ''}
+        ${r.vino ? `<span class="muted">→ ${esc(r.vino)}</span>` : `<span class="pill p-bad">${esc(r.esito)}</span>`}</div>`).join('')}</div></div>`; }).join('')
+    || `<div class="card empty">${ic('receipt')}<div>Nessun calice battuto in cassa da quando sono aperte le bottiglie.</div></div>`;
+  const n = p.da_abbinare.length; $('nDa').hidden = !n; $('nDa').textContent = n;
   const opz = APERTE.map(v => `<option value="${v.vino_product_id}">${esc(v.nome)}</option>`).join('');
-  $('daAbbinare').innerHTML = p.da_abbinare.map((d, i) => `<tr><td>${d.qty} × ${esc(d.prodotto)}${d.produttore ? ' · <b>' + esc(d.produttore) + '</b>' : ''}<br><span class="muted">${esc(d.esito)}</span></td>
-      <td>${APERTE.length ? `<select id="da${i}">${opz}</select>` : '<span class="muted">nessuna bottiglia aperta</span>'}</td>
-      <td>${APERTE.length ? `<button class="sec" onclick='aggAbb(${JSON.stringify(d)}, "da${i}")'>Abbina</button>` : ''}</td></tr>`).join('')
-    || '<tr><td class="muted">Tutti i calici in cassa sono assegnati a una bottiglia. 👍</td></tr>';
+  $('daAbbinare').innerHTML = p.da_abbinare.map((d, i) => `<div class="card item">
+      <div class="grow"><div class="t"><span class="qty">${d.qty}×</span> ${esc(d.prodotto)}${d.produttore ? ' · ' + esc(d.produttore) : ''}</div><div class="small muted">${esc(d.esito)}</div></div>
+      ${APERTE.length ? `<select id="da${i}" style="width:auto;max-width:220px">${opz}</select><button class="btn-ghost btn-sm" data-d="${attr(d)}" onclick="aggAbb(JSON.parse(this.dataset.d), 'da${i}')">${ic('link')}Abbina</button>` : '<span class="muted small">nessuna bottiglia aperta</span>'}
+    </div>`).join('') || `<div class="card item"><span class="pill p-ok">${ic('check')}Tutto assegnato</span><span class="muted small">Ogni calice in cassa è collegato a una bottiglia.</span></div>`;
 }
 async function caricaAbb(){
   const abb = await api('/api/abbinamenti');
-  const nomeVino = id => (STOCK.find(v => v.id == id) || APERTE.find(v => v.vino_product_id == id) || {name:'#' + id}).name || ('#' + id);
-  $('abbList').innerHTML = abb.map(a => `<tr><td>${esc(a.descrizione)}</td><td>→ ${esc(nomeVino(a.vino_product_id))}</td><td><button class="sec" onclick='delAbb(${a.calice_product_id}, ${JSON.stringify(a.produttore)})'>Rimuovi</button></td></tr>`).join('')
-    || '<tr><td class="muted">Nessuno: per ora basta l\'abbinamento automatico per produttore.</td></tr>';
+  const nomeVino = id => (STOCK.find(v => v.id == id) || {}).name || (APERTE.find(v => v.vino_product_id == id) || {}).nome || ('#' + id);
+  $('abbList').innerHTML = abb.map(a => `<div class="card item">${ic('link')}<div class="grow"><div class="t">${esc(a.descrizione)}</div><div class="small muted">→ ${esc(nomeVino(a.vino_product_id))}</div></div>
+      <button class="btn-ghost btn-sm" data-p="${esc(a.produttore)}" onclick="delAbb(${a.calice_product_id}, this.dataset.p)">${ic('x')}Rimuovi</button></div>`).join('')
+    || `<p class="muted small" style="margin:0">Nessuno: per ora basta l'abbinamento automatico per produttore.</p>`;
 }
 async function aggAbb(d, sel){
-  const vid = +$(sel).value, v = APERTE.find(x => x.vino_product_id == vid);
-  await api('/api/abbinamenti', {calice_product_id:d.calice_product_id, produttore:d.produttore,
-    descrizione:`${d.prodotto}${d.produttore ? ' · ' + d.produttore : ''}`, vino_product_id:vid});
-  await caricaPos(); caricaAbb();
+  await api('/api/abbinamenti', {calice_product_id:d.calice_product_id, produttore:d.produttore, descrizione:`${d.prodotto}${d.produttore ? ' · ' + d.produttore : ''}`, vino_product_id:+$(sel).value});
+  toast('Abbinamento salvato'); await caricaPos(); caricaAbb();
 }
 async function delAbb(pid, prod){ await fetch(`/api/abbinamenti?calice_product_id=${pid}&produttore=${encodeURIComponent(prod)}`, {method:'DELETE'}); await caricaPos(); caricaAbb(); }
-function aggCategoria(){ const v = STOCK.find(x => x.id == $('vino').value); if (v && v.categoria) $('categoria').value = v.categoria; }
-async function apriBottiglia(){
-  const v = STOCK.find(x => x.id == $('vino').value); if (!v) return;
-  const dati = {product_id:v.id, nome:v.name, categoria:$('categoria').value};
-  try { await api('/api/bottiglie', dati, {silenzia:[409]}); }
-  catch (e) {
-    if (e.status !== 409) return;
-    if (!confirm(`⚠️ Attenzione: ${v.name} costa ${euro(e.prezzo)}, più di ${euro(e.soglia)}.\n\nVuoi davvero aprirla? L'apertura verrà registrata a tuo nome.`)) return;
-    await api('/api/bottiglie', {...dati, conferma_prezzo:true});
-  }
-  carica();
+
+// ---------------- storico
+async function caricaStorico(){
+  const st = await api('/api/storico');
+  $('storico').innerHTML = st.map(b => `<div class="card item">
+      <div class="face">${faccia(b.faccina)}</div>
+      <div class="grow">
+        <div class="t">${esc(b.nome)} ${b.costosa ? `<span class="pill p-warn">${ic('euro')}${euro(b.prezzo)}</span>` : ''}</div>
+        <div class="meta"><span>${ic('glass')}${b.calici} / ${INFO.calici_per_bottiglia}</span><span>${ic('clock')}${b.giorni_aperta} gg</span><span>chiusa ${data(b.chiusa_il)}</span>
+          ${b.aperta_da ? `<span>${ic('user')}${esc(b.aperta_da)}${b.chiusa_da && b.chiusa_da !== b.aperta_da ? ' → ' + esc(b.chiusa_da) : ''}</span>` : ''}</div>
+      </div>
+      ${b.scaricata_odoo ? `<span class="pill p-ok" title="Scaricata ${esc((b.scaricata_ts || '').replace('T', ' '))}">${ic('check')}Odoo OK</span>`
+        : `<button class="btn-ghost btn-sm" style="color:var(--bad)" onclick="sincronizza(${b.id})">${ic('refresh')}Riprova Odoo</button>`}
+    </div>`).join('') || `<div class="card empty">${ic('history')}<div>Ancora nessuna bottiglia finita.</div></div>`;
 }
-async function calice(id, d){ await api(`/api/bottiglie/${id}/calice`, {delta:d}); carica(); }
-let BOTT = [];
+async function sincronizza(id){ try { await api(`/api/bottiglie/${id}/sincronizza`, {}); toast('Sincronizzata con Odoo'); } catch (e) {} caricaStorico(); }
+
+// ---------------- dashboard
+async function caricaDash(){
+  const d = await api('/api/dashboard?settimane=' + $('periodo').value);
+  $('fonte').textContent = d.fonte === 'cassa' ? 'Dati dalla cassa Odoo (tutti i calici battuti).' : 'Dati dai calici segnati nell\'app (cassa Odoo non disponibile).';
+  const b = d.bottiglie, perc = b.chiuse ? Math.round(100 * b.sorridenti / b.chiuse) : 0;
+  $('kpi').innerHTML = `
+    <div class="stat"><div class="ico">${ic('glass')}</div><div><b>${d.totale}</b><small>calici venduti</small></div></div>
+    <div class="stat"><div class="ico">${ic('chart')}</div><div><b>${String(d.media_settimana).replace('.', ',')}</b><small>calici a settimana</small></div></div>
+    <div class="stat"><div class="ico">${ic('bottle')}</div><div><b>${b.chiuse}</b><small>bottiglie finite · ${String(b.giorni_medi).replace('.', ',')} gg in media</small></div></div>
+    <div class="stat"><div class="ico" style="background:var(--ok-soft);color:var(--ok)">${ic('smile')}</div><div><b>${perc}%</b><small>bottiglie da 7 calici</small></div></div>`;
+  const maxT = Math.max(1, ...d.top.map(t => t.calici));
+  $('top').innerHTML = d.top.map((t, i) => `<div class="hbar"><span class="lbl" title="${esc(t.nome)}">${i + 1}. ${esc(t.nome)}</span><div class="trk"><div class="fill" style="width:${100 * t.calici / maxT}%;${i ? 'opacity:' + (1 - i * 0.07) : ''}"></div></div><span class="v">${t.calici}</span></div>`).join('')
+    || `<div class="empty small">Nessun calice nel periodo.</div>`;
+  const maxG = Math.max(0.1, ...d.per_giorno.map(g => g.media)), best = d.per_giorno.reduce((a, g) => g.media > a.media ? g : a, d.per_giorno[0]);
+  $('giorni').innerHTML = d.per_giorno.map(g => `<div class="col"><div class="b ${g === best && g.media ? 'hi' : ''}" style="height:${85 * g.media / maxG}%"><span>${String(g.media).replace('.', ',')}</span></div><small>${g.giorno}</small></div>`).join('');
+  const maxS = Math.max(1, ...d.per_settimana.map(s => s.calici));
+  $('settimane').innerHTML = d.per_settimana.map((s, i) => `<div class="col"><div class="b ${i === d.per_settimana.length - 1 ? 'hi' : ''}" style="height:${85 * s.calici / maxS}%"><span>${s.calici}</span></div><small>${data(s.settimana)}</small></div>`).join('');
+}
+
+// ---------------- dipendenti
 async function caricaUtenti(){
   const us = await api('/api/utenti');
-  $('utenti').innerHTML = us.map(u => `<tr style="${u.attivo ? '' : 'opacity:.5'}"><td><b>${esc(u.nome)}</b> <span class="muted">${u.ruolo === 'admin' ? 'amministratore' : 'dipendente'}${u.attivo ? '' : ' · disattivato'}</span></td>
-    <td style="text-align:right"><button class="sec" onclick="nuovoPin(${u.id}, ${JSON.stringify(u.nome).replace(/"/g, '&quot;')})">Cambia PIN</button>
-    ${u.id === ME.id ? '' : `<button class="sec" onclick="attiva(${u.id}, ${!u.attivo})">${u.attivo ? 'Disattiva' : 'Riattiva'}</button>`}</td></tr>`).join('');
+  $('utenti').innerHTML = us.map(u => `<div class="card item" style="${u.attivo ? '' : 'opacity:.55'}">
+      <div class="avatar" style="${u.ruolo === 'admin' ? 'background:var(--accent)' : ''}">${esc(u.nome.slice(0, 1).toUpperCase())}</div>
+      <div class="grow"><div class="t">${esc(u.nome)}</div><div class="small muted">${u.ruolo === 'admin' ? 'Amministratore' : 'Dipendente'}${u.attivo ? '' : ' · disattivato'}</div></div>
+      <button class="btn-ghost btn-sm" data-n="${esc(u.nome)}" onclick="nuovoPin(${u.id}, this.dataset.n)">${ic('key')}PIN</button>
+      ${u.id === ME.id ? '' : `<button class="btn-ghost btn-sm" onclick="attiva(${u.id}, ${!u.attivo})">${u.attivo ? 'Disattiva' : 'Riattiva'}</button>`}
+    </div>`).join('');
 }
 async function aggUtente(){
-  await api('/api/utenti', {nome:$('uNome').value, pin:$('uPin').value, ruolo:$('uRuolo').value});
-  $('uNome').value = $('uPin').value = ''; caricaUtenti();
+  const nome = $('uNome').value;
+  try { await api('/api/utenti', {nome, pin:$('uPin').value, ruolo:$('uRuolo').value}); toast(`${nome} aggiunto`); $('uNome').value = $('uPin').value = ''; caricaUtenti(); } catch (e) {}
 }
-async function nuovoPin(id, nome){ const pin = prompt(`Nuovo PIN per ${nome} (4-8 cifre):`); if (pin) { await api(`/api/utenti/${id}`, {pin}); alert('PIN aggiornato'); } }
+function nuovoPin(id, nome){
+  dialogo(`<h3>Nuovo PIN per ${esc(nome)}</h3><input id="np" inputmode="numeric" placeholder="4-8 cifre" autocomplete="off">
+    <div class="foot"><button class="btn-ghost" onclick="chiudiDlg()">Annulla</button><button class="btn" onclick="salvaPin(${id})">${ic('key')}Salva</button></div>`);
+  setTimeout(() => $('np').focus(), 50);
+}
+async function salvaPin(id){ try { await api(`/api/utenti/${id}`, {pin:$('np').value}); chiudiDlg(); toast('PIN aggiornato'); } catch (e) {} }
 async function attiva(id, on){ await api(`/api/utenti/${id}`, {attivo:on}); caricaUtenti(); }
-async function sincronizza(id){ try { await api(`/api/bottiglie/${id}/sincronizza`, {}); } catch (e) {} carica(); }
-async function finita(id){
-  const b = BOTT.find(x => x.id === id); if (!b) return;
-  const v = APERTE.find(x => x.vino_product_id === b.product_id);
-  const cassa = v ? (v.bottiglie > 1 ? `${v.calici_cassa} (su ${v.bottiglie} bottiglie aperte di questo vino)` : v.calici_cassa) : '—';
-  $('riepBody').innerHTML = `<h3>${esc(b.nome)} è finita?</h3>
-    <p><span class="face">${faccia(b.faccina_prevista)}</span> <b>${b.calici}</b> calici segnati su ${INFO.calici_per_bottiglia} · in cassa: <b>${cassa}</b></p>
-    <p class="muted">Aperta il ${b.aperta_il}, da ${b.giorni} gg. Confermando, 1 bottiglia viene scaricata subito dall'inventario Odoo.</p>
-    <div class="row"><button onclick="confermaFinita(${b.id})">Conferma e scarica da Odoo</button><button class="sec" onclick="riep.close()">Annulla</button></div>`;
-  riep.showModal();
-}
-async function confermaFinita(id){
-  try { const b = await api(`/api/bottiglie/${id}/chiudi`, {});
-    $('riepBody').innerHTML = `<h3><span class="face">${faccia(b.faccina)}</span> ${esc(b.nome)} chiusa</h3><p>${b.calici} calici su ${INFO.calici_per_bottiglia}, aperta per ${b.giorni_aperta} gg. Scaricata da Odoo.</p><p><button onclick="riep.close()">OK</button></p>`;
-  } catch (e) { riep.close(); }
-  carica();
-}
-init().then(() => caricaPos()).then(caricaAbb);
+
+init();
 setInterval(caricaPos, 30000);
 </script>
 </body>

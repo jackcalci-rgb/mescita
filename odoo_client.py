@@ -165,7 +165,9 @@ class OdooClient:
         if not product_ids:
             return []
         if self.demo:
-            return [{**r, "data": dal_utc} for r in self._demo_pos if r["product_id"] in product_ids]
+            from datetime import datetime, timezone
+            ora = max(dal_utc, datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M:%S"))
+            return [{**r, "data": ora} for r in self._demo_pos if r["product_id"] in product_ids]
         dom = [("product_id", "in", list(product_ids)), ("create_date", ">=", dal_utc),
                ("order_id.state", "!=", "cancel")]
         campi = ["order_id", "product_id", "qty", "create_date"]
