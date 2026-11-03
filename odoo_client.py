@@ -16,6 +16,8 @@ class OdooClient:
         self.location_id = int(os.getenv("ODOO_LOCATION_ID", "0") or 0)
         # Categoria prodotto Odoo che contiene i vini (opzionale)
         self.categ_name = os.getenv("ODOO_WINE_CATEGORY", "")
+        # Categoria prodotto Odoo dei calici venduti al POS (es. "Mescita")
+        self.calice_categ = os.getenv("ODOO_CALICE_CATEGORY", "")
         self.demo = not self.url
         self._uid = None
         self._demo_stock = {
@@ -96,7 +98,10 @@ class OdooClient:
         """Prodotti vendibili al POS (per abbinare 'Calice X' alla bottiglia X)."""
         if self.demo:
             return [{"id": 100 + v["id"], "name": f"Calice {v['name']}"} for v in self._demo_stock.values()]
-        return self._call("product.product", "search_read", [("available_in_pos", "=", True)],
+        domain = [("available_in_pos", "=", True)]
+        if self.calice_categ:
+            domain.append(("categ_id.complete_name", "ilike", self.calice_categ))
+        return self._call("product.product", "search_read", domain,
                           fields=["id", "name"], order="name")
 
     def righe_pos(self, product_ids, dal_utc: str):
