@@ -1,0 +1,35 @@
+<!doctype html>
+<html lang="it">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Mescita · Accesso</title>
+<style>
+:root{--bg:#f7f3ee;--card:#fff;--ink:#2a1f1a;--muted:#7a6a60;--vino:#7b1e2b;--line:#e5dcd3;--bad:#c62828}
+@media (prefers-color-scheme:dark){:root{--bg:#1b1513;--card:#26201d;--ink:#f3ebe4;--muted:#b3a39a;--line:#3a312c}}
+*{box-sizing:border-box}body{margin:0;font-family:system-ui,-apple-system,Segoe UI,sans-serif;background:var(--bg);color:var(--ink);min-height:100vh;display:grid;place-items:center;padding:16px}
+form{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:22px;width:100%;max-width:340px;display:grid;gap:12px}
+h1{margin:0 0 4px;font-size:22px;color:var(--vino)}
+input{font:inherit;padding:12px;border-radius:10px;border:1px solid var(--line);background:var(--card);color:var(--ink)}
+button{font:inherit;border:0;border-radius:10px;padding:12px;background:var(--vino);color:#fff;cursor:pointer}
+#err{color:var(--bad);min-height:1.2em;margin:0;font-size:14px}
+</style>
+</head>
+<body>
+<form id="f">
+  <h1>🍷 Mescita a calice</h1>
+  <input id="nome" placeholder="Nome" autocomplete="username" required>
+  <input id="pin" placeholder="PIN" type="password" inputmode="numeric" autocomplete="current-password" required>
+  <button>Entra</button>
+  <p id="err"></p>
+</form>
+<script>
+document.getElementById('f').onsubmit = async e => {
+  e.preventDefault();
+  const r = await fetch('/api/login', {method:'POST', headers:{'Content-Type':'application/json'},
+    body: JSON.stringify({nome: nome.value, pin: pin.value})});
+  if (r.ok) location.href = '/'; else document.getElementById('err').textContent = (await r.json()).detail || 'Errore';
+};
+</script>
+</body>
+</html>

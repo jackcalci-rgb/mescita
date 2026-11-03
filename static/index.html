@@ -26,14 +26,8 @@ table{width:100%;border-collapse:collapse;font-size:14px}td,th{padding:6px;borde
 </style>
 </head>
 <body>
-<header><h1>🍷 Mescita a calice</h1><div class="row"><span id="demo"></span><span id="sess" class="muted" style="color:#fff"></span></div></header>
+<header><h1>🍷 Mescita a calice</h1><div class="row"><span id="demo"></span><span id="utente" style="font-size:14px"></span><button class="sec" style="color:#fff;border-color:#fff6;padding:6px 10px" onclick="esci()">Esci</button></div></header>
 <main>
-  <div class="card row">
-    <div class="grow" id="sessTxt">…</div>
-    <button id="btnApri" onclick="apriSessione()">Apri sessione</button>
-    <button id="btnChiudi" onclick="chiudiSessione()">Chiudi sessione</button>
-  </div>
-
   <h2>Apri una bottiglia dallo stock Odoo</h2>
   <div class="card row">
     <select id="vino" class="grow" onchange="aggCategoria()"></select>
@@ -49,7 +43,7 @@ table{width:100%;border-collapse:collapse;font-size:14px}td,th{padding:6px;borde
     <p class="muted" style="margin:8px 0 0">Gli ordini compaiono quando la cassa li sincronizza con Odoo (invio in cucina, cambio tavolo o pagamento).</p></div>
 
   <h2>Storico bottiglie finite</h2>
-  <div class="card"><table><thead><tr><th></th><th>Vino</th><th>Calici</th><th>Giorni</th><th>Chiusa il</th><th>Odoo</th></tr></thead><tbody id="storico"></tbody></table></div>
+  <div class="card"><table><thead><tr><th></th><th>Vino</th><th>Calici</th><th>Giorni</th><th>Chiusa il</th><th>Chi</th><th>Odoo</th></tr></thead><tbody id="storico"></tbody></table></div>
   <h2>Calici da abbinare</h2>
   <div class="card">
     <p class="muted" style="margin:0 0 8px">Ogni calice viene assegnato in automatico alla bottiglia aperta che contiene nel nome il produttore scelto in cassa (attributo "Produttore"). Qui trovi quelli che l'app non riesce ad assegnare da sola.</p>
@@ -57,54 +51,71 @@ table{width:100%;border-collapse:collapse;font-size:14px}td,th{padding:6px;borde
     <h3 style="font-size:15px;margin:14px 0 6px">Abbinamenti manuali</h3>
     <table><tbody id="abbList"></tbody></table>
   </div>
+  <section id="adminBox" hidden>
+    <h2>Dipendenti</h2>
+    <div class="card">
+      <div class="row">
+        <input id="uNome" class="grow" placeholder="Nome">
+        <input id="uPin" placeholder="PIN (4-8 cifre)" inputmode="numeric" style="width:150px">
+        <select id="uRuolo"><option value="dipendente">Dipendente</option><option value="admin">Amministratore</option></select>
+        <button onclick="aggUtente()">Aggiungi</button>
+      </div>
+      <table style="margin-top:10px"><tbody id="utenti"></tbody></table>
+    </div>
+  </section>
 </main>
 
-<dialog id="riep"><div id="riepBody"></div><p><button onclick="riep.close()">OK</button></p></dialog>
+<dialog id="riep"><div id="riepBody"></div></dialog>
 
 <script>
 let INFO, STOCK = [], SESS = null;
 const $ = id => document.getElementById(id);
-const api = async (url, body) => {
+const api = async (url, body, opz = {}) => {
   const r = await fetch(url, body === undefined ? {} : {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(body)});
+  if (r.status === 401) { location.href = '/login'; throw new Error('login'); }
   const j = await r.json();
-  if (!r.ok) { alert(j.detail || 'Errore'); throw j; }
+  if (!r.ok) { if (!(opz.silenzia || []).includes(r.status)) alert(j.detail || 'Errore'); j.status = r.status; throw j; }
   return j;
 };
+let ME = null;
+async function esci(){ await fetch('/api/logout', {method:'POST'}); location.href = '/login'; }
+const euro = n => n == null ? '' : n.toLocaleString('it-IT', {style:'currency', currency:'EUR'});
 const faccia = f => f === 'sorridente' ? '😊' : '😠';
 const esc = s => String(s).replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
 
 async function init(){
   INFO = await api('/api/info');
+  ME = await api('/api/me');
+  $('utente').textContent = ME.nome + (ME.ruolo === 'admin' ? ' · amministratore' : '');
+  if (ME.ruolo === 'admin') { $('adminBox').hidden = false; caricaUtenti(); }
   if (INFO.demo) $('demo').innerHTML = '<span class="demo">DEMO (Odoo non collegato)</span>';
   $('categoria').innerHTML = Object.entries(INFO.categorie).map(([k,c]) => `<option value="${k}">${c.nome} (max ${c.max} gg)</option>`).join('');
   await carica();
 }
 async function carica(){
-  SESS = await api('/api/sessione');
-  $('sessTxt').innerHTML = SESS ? `<b>Sessione aperta</b> <span class="muted">dal ${SESS.aperta_il.replace('T',' ')}</span>` : '<b>Nessuna sessione aperta</b> <span class="muted">— aprila per iniziare a servire</span>';
-  $('btnApri').disabled = !!SESS; $('btnChiudi').disabled = !SESS;
   STOCK = await api('/api/stock');
-  $('vino').innerHTML = STOCK.map(v => `<option value="${v.id}">${esc(v.name)} — ${v.qty} in stock</option>`).join('');
+  $('vino').innerHTML = STOCK.map(v => `<option value="${v.id}">${esc(v.name)} — ${v.qty} in stock${v.prezzo ? ' · ' + euro(v.prezzo) : ''}${v.prezzo > INFO.soglia_prezzo ? ' 💶' : ''}</option>`).join('');
   aggCategoria();
-  const ap = await api('/api/bottiglie');
+  const ap = await api('/api/bottiglie'); BOTT = ap;
   $('aperte').innerHTML = ap.length ? ap.map(b => `
     <div class="card ${b.stato==='finita'?'finita':''}">
       <div class="row">
         <div class="grow"><b>${esc(b.nome)}</b><br>
-          <span class="muted">${esc(b.categoria_nome)} · aperta il ${b.aperta_il} · da ${b.giorni} gg (max ${b.max_giorni})</span>
+          <span class="muted">${esc(b.categoria_nome)} · aperta il ${b.aperta_il}${b.aperta_da ? ' da ' + esc(b.aperta_da) : ''} · da ${b.giorni} gg (max ${b.max_giorni})</span>
+          ${b.costosa ? `<span class="badge attenzione">💶 ${euro(b.prezzo)}</span>` : ''}
           <span class="badge ${b.durata}">${{ok:'OK',attenzione:'Da finire presto',scaduta:'Oltre la durata!'}[b.durata]||''}</span>
           <div class="muted pos" data-vino="${b.product_id}"></div></div>
-        <button class="sec big" onclick="calice(${b.id},-1)" ${b.stato==='finita'||!SESS?'disabled':''}>−</button>
+        <button class="sec big" onclick="calice(${b.id},-1)" ${b.stato==='finita'?'disabled':''}>−</button>
         <div class="calici">${b.calici}<div class="muted" style="font-size:12px;font-weight:400">/ ${INFO.calici_per_bottiglia} calici</div></div>
-        <button class="big" onclick="calice(${b.id},1)" ${b.stato==='finita'||!SESS?'disabled':''}>+ calice</button>
+        <button class="big" onclick="calice(${b.id},1)" ${b.stato==='finita'?'disabled':''}>+ calice</button>
         ${b.stato==='finita'
-          ? `<span class="face" title="Faccina che riceverà a chiusura">${faccia(b.faccina_prevista)}</span><button class="sec" onclick="finita(${b.id},false)">Annulla</button>`
-          : `<button class="sec" onclick="finita(${b.id},true)">Bottiglia finita</button>`}
+          ? `<button class="sec" onclick="finita(${b.id})">Bottiglia finita</button>`
+          : `<button class="sec" onclick="finita(${b.id})">Bottiglia finita</button>`}
       </div>
     </div>`).join('') : '<div class="card muted">Nessuna bottiglia aperta.</div>';
   caricaPos();
   const st = await api('/api/storico');
-  $('storico').innerHTML = st.map(b => `<tr><td class="face" style="font-size:22px">${faccia(b.faccina)}</td><td>${esc(b.nome)}</td><td>${b.calici}</td><td>${b.giorni_aperta}</td><td>${b.chiusa_il}</td><td>${b.scaricata_odoo?'✔ scaricata':'⚠ non scaricata'}</td></tr>`).join('') || '<tr><td colspan="6" class="muted">Ancora nessuna.</td></tr>';
+  $('storico').innerHTML = st.map(b => `<tr><td class="face" style="font-size:22px">${faccia(b.faccina)}</td><td>${esc(b.nome)}${b.costosa ? ' <span class="badge attenzione">💶 ' + euro(b.prezzo) + '</span>' : ''}</td><td>${b.calici}</td><td>${b.giorni_aperta}</td><td>${b.chiusa_il}</td><td class="muted">${b.aperta_da ? 'aperta: ' + esc(b.aperta_da) : ''}${b.chiusa_da ? '<br>chiusa: ' + esc(b.chiusa_da) : ''}</td><td>${b.scaricata_odoo ? `<span class="badge ok">OK</span> <span class="muted">${(b.scaricata_ts||'').replace('T',' ')}</span>` : `<span class="badge scaduta">Non sincronizzata</span> <button class="sec" style="padding:4px 10px" onclick="sincronizza(${b.id})">Riprova</button>`}</td></tr>`).join('') || '<tr><td colspan="7" class="muted">Ancora nessuna.</td></tr>';
 }
 const STATO = {draft:['Conto aperto','attenzione'], paid:['Pagato','ok'], done:['Pagato','ok'], invoiced:['Fatturato','ok']};
 let APERTE = [];
@@ -140,21 +151,47 @@ async function aggAbb(d, sel){
 }
 async function delAbb(pid, prod){ await fetch(`/api/abbinamenti?calice_product_id=${pid}&produttore=${encodeURIComponent(prod)}`, {method:'DELETE'}); await caricaPos(); caricaAbb(); }
 function aggCategoria(){ const v = STOCK.find(x => x.id == $('vino').value); if (v && v.categoria) $('categoria').value = v.categoria; }
-async function apriSessione(){ await api('/api/sessione/apri', {}); carica(); }
 async function apriBottiglia(){
   const v = STOCK.find(x => x.id == $('vino').value); if (!v) return;
-  await api('/api/bottiglie', {product_id:v.id, nome:v.name, categoria:$('categoria').value}); carica();
+  const dati = {product_id:v.id, nome:v.name, categoria:$('categoria').value};
+  try { await api('/api/bottiglie', dati, {silenzia:[409]}); }
+  catch (e) {
+    if (e.status !== 409) return;
+    if (!confirm(`⚠️ Attenzione: ${v.name} costa ${euro(e.prezzo)}, più di ${euro(e.soglia)}.\n\nVuoi davvero aprirla? L'apertura verrà registrata a tuo nome.`)) return;
+    await api('/api/bottiglie', {...dati, conferma_prezzo:true});
+  }
+  carica();
 }
 async function calice(id, d){ await api(`/api/bottiglie/${id}/calice`, {delta:d}); carica(); }
-async function finita(id, f){ await api(`/api/bottiglie/${id}/finita`, {finita:f}); carica(); }
-async function chiudiSessione(){
-  if (!confirm('Chiudere la sessione? Le bottiglie finite verranno scaricate da Odoo.')) return;
-  const r = await api('/api/sessione/chiudi', {});
-  $('riepBody').innerHTML = `<h3>Sessione chiusa · ${r.calici_sessione} calici venduti oggi</h3>
-    <h4>Bottiglie finite e scaricate</h4>${r.finite.map(b => `<p><span class="face">${faccia(b.faccina)}</span> ${esc(b.nome)}: ${b.calici} calici su ${INFO.calici_per_bottiglia}</p>`).join('') || '<p class="muted">Nessuna</p>'}
-    <h4>Restano aperte</h4>${r.restano_aperte.map(b => `<p>${esc(b.nome)} — da ${b.giorni} gg <span class="badge ${b.durata}">${b.durata}</span></p>`).join('') || '<p class="muted">Nessuna</p>'}
-    ${r.errori.length ? '<h4>Errori Odoo</h4>' + r.errori.map(e => `<p style="color:var(--bad)">${esc(e)}</p>`).join('') : ''}`;
-  riep.showModal(); carica();
+let BOTT = [];
+async function caricaUtenti(){
+  const us = await api('/api/utenti');
+  $('utenti').innerHTML = us.map(u => `<tr style="${u.attivo ? '' : 'opacity:.5'}"><td><b>${esc(u.nome)}</b> <span class="muted">${u.ruolo === 'admin' ? 'amministratore' : 'dipendente'}${u.attivo ? '' : ' · disattivato'}</span></td>
+    <td style="text-align:right"><button class="sec" onclick="nuovoPin(${u.id}, ${JSON.stringify(u.nome).replace(/"/g, '&quot;')})">Cambia PIN</button>
+    ${u.id === ME.id ? '' : `<button class="sec" onclick="attiva(${u.id}, ${!u.attivo})">${u.attivo ? 'Disattiva' : 'Riattiva'}</button>`}</td></tr>`).join('');
+}
+async function aggUtente(){
+  await api('/api/utenti', {nome:$('uNome').value, pin:$('uPin').value, ruolo:$('uRuolo').value});
+  $('uNome').value = $('uPin').value = ''; caricaUtenti();
+}
+async function nuovoPin(id, nome){ const pin = prompt(`Nuovo PIN per ${nome} (4-8 cifre):`); if (pin) { await api(`/api/utenti/${id}`, {pin}); alert('PIN aggiornato'); } }
+async function attiva(id, on){ await api(`/api/utenti/${id}`, {attivo:on}); caricaUtenti(); }
+async function sincronizza(id){ try { await api(`/api/bottiglie/${id}/sincronizza`, {}); } catch (e) {} carica(); }
+async function finita(id){
+  const b = BOTT.find(x => x.id === id); if (!b) return;
+  const v = APERTE.find(x => x.vino_product_id === b.product_id);
+  const cassa = v ? (v.bottiglie > 1 ? `${v.calici_cassa} (su ${v.bottiglie} bottiglie aperte di questo vino)` : v.calici_cassa) : '—';
+  $('riepBody').innerHTML = `<h3>${esc(b.nome)} è finita?</h3>
+    <p><span class="face">${faccia(b.faccina_prevista)}</span> <b>${b.calici}</b> calici segnati su ${INFO.calici_per_bottiglia} · in cassa: <b>${cassa}</b></p>
+    <p class="muted">Aperta il ${b.aperta_il}, da ${b.giorni} gg. Confermando, 1 bottiglia viene scaricata subito dall'inventario Odoo.</p>
+    <div class="row"><button onclick="confermaFinita(${b.id})">Conferma e scarica da Odoo</button><button class="sec" onclick="riep.close()">Annulla</button></div>`;
+  riep.showModal();
+}
+async function confermaFinita(id){
+  try { const b = await api(`/api/bottiglie/${id}/chiudi`, {});
+    $('riepBody').innerHTML = `<h3><span class="face">${faccia(b.faccina)}</span> ${esc(b.nome)} chiusa</h3><p>${b.calici} calici su ${INFO.calici_per_bottiglia}, aperta per ${b.giorni_aperta} gg. Scaricata da Odoo.</p><p><button onclick="riep.close()">OK</button></p>`;
+  } catch (e) { riep.close(); }
+  carica();
 }
 init().then(() => caricaPos()).then(caricaAbb);
 setInterval(caricaPos, 30000);

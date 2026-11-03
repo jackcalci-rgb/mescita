@@ -24,12 +24,12 @@ class OdooClient:
         self.demo = not self.url
         self._uid = None
         self._demo_stock = {
-            1: {"id": 1, "name": "Franciacorta Brut", "qty": 6, "categ": "spumante"},
-            2: {"id": 2, "name": "Vermentino di Gallura", "qty": 10, "categ": "bianco_leggero"},
-            3: {"id": 3, "name": "Chardonnay barrique", "qty": 4, "categ": "bianco_corposo"},
-            4: {"id": 4, "name": "Pinot Nero Alto Adige", "qty": 5, "categ": "rosso_leggero"},
-            5: {"id": 5, "name": "Barolo DOCG", "qty": 3, "categ": "rosso_corposo"},
-            6: {"id": 6, "name": "Passito di Pantelleria", "qty": 2, "categ": "dolce"},
+            1: {"id": 1, "prezzo": 28, "name": "Franciacorta Brut", "qty": 6, "categ": "spumante"},
+            2: {"id": 2, "prezzo": 14, "name": "Vermentino di Gallura", "qty": 10, "categ": "bianco_leggero"},
+            3: {"id": 3, "prezzo": 32, "name": "Chardonnay barrique", "qty": 4, "categ": "bianco_corposo"},
+            4: {"id": 4, "prezzo": 24, "name": "Pinot Nero Alto Adige", "qty": 5, "categ": "rosso_leggero"},
+            5: {"id": 5, "prezzo": 55, "name": "Barolo DOCG", "qty": 3, "categ": "rosso_corposo"},
+            6: {"id": 6, "prezzo": 48, "name": "Passito di Pantelleria", "qty": 2, "categ": "dolce"},
         }
         # ordini POS finti per la demo (calici con attributo produttore)
         self._demo_pos = [
@@ -98,7 +98,20 @@ class OdooClient:
             pid, pname = q["product_id"]
             tot.setdefault(pid, {"id": pid, "name": pname, "qty": 0, "categ": None})
             tot[pid]["qty"] += q["quantity"]
+        prezzi = self.prezzi(list(tot))
+        for pid, v in tot.items():
+            v["prezzo"] = prezzi.get(pid)
         return sorted(tot.values(), key=lambda v: v["name"])
+
+    def prezzi(self, product_ids):
+        """{product_id: costo} dal campo costo del prodotto (standard_price) in Odoo."""
+        if self.demo:
+            return {i: self._demo_stock[i]["prezzo"] for i in product_ids if i in self._demo_stock}
+        if not product_ids:
+            return {}
+        campo = os.getenv("ODOO_CAMPO_PREZZO", "standard_price")
+        return {p["id"]: p.get(campo) for p in
+                self._call("product.product", "read", list(product_ids), fields=[campo])}
 
     # --- scarico a fine sessione -----------------------------------------
     def scarica_bottiglia(self, product_id: int, quante: int = 1):

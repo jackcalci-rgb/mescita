@@ -5,11 +5,12 @@ Web app per controllare le bottiglie aperte per la vendita a calice, collegata a
 ![Schermata](docs/screenshot.png)
 
 ## Come funziona
-1. **Apri sessione** a inizio servizio.
-2. **Apri bottiglia**: scegli un vino dallo stock Odoo e la sua categoria (la categoria viene ricordata per le volte successive).
-3. **+ calice** a ogni calice venduto (− per correggere).
-4. **Bottiglia finita** quando è vuota: compare l'anteprima della faccina (😊 se 7 calici esatti, 😠 altrimenti).
-5. **Chiudi sessione** a fine giornata: solo ora le bottiglie finite vengono scaricate dall'inventario Odoo. Le altre restano aperte e il giorno dopo si vede da quanti giorni sono aperte, con avviso se superano la durata della categoria.
+1. **Apri bottiglia**: scegli un vino dallo stock Odoo e la sua categoria (la categoria viene ricordata per le volte successive).
+2. **+ calice** a ogni calice venduto (− per correggere). Accanto vedi i calici battuti in cassa.
+3. **Bottiglia finita** quando è vuota: compare un riepilogo con calici segnati, calici in cassa e faccina (😊 se 7 calici esatti, 😠 altrimenti). Solo dopo la conferma di una persona la bottiglia viene scaricata subito dall'inventario Odoo.
+4. Nello **Storico** ogni bottiglia ha "OK" con data e ora se Odoo ha confermato lo scarico, altrimenti "Non sincronizzata" con il pulsante Riprova.
+
+Le bottiglie non finite restano aperte e si vede da quanti giorni lo sono, con avviso se superano la durata della categoria.
 
 | Categoria | Durata (giorni) |
 |---|---|
@@ -22,6 +23,12 @@ Web app per controllare le bottiglie aperte per la vendita a calice, collegata a
 
 Badge: verde = OK, arancione = tra min e max (da finire presto), rosso = oltre la durata massima.
 Durate e calici per bottiglia si cambiano in `categorie.py`.
+
+## Accesso e dipendenti
+Ogni persona entra con **nome e PIN**. Al primo avvio l'app crea l'amministratore `admin` con password uguale a `MESCITA_PASSWORD` del `.env` (o `0000` se vuota): entra, cambia il PIN da "Dipendenti" in fondo alla pagina e aggiungi i dipendenti. L'amministratore può aggiungere, disattivare/riattivare e cambiare il PIN di ognuno. L'app registra chi apre e chi chiude ogni bottiglia e chi segna i calici.
+
+## Avviso bottiglie costose
+Se il costo del prodotto in Odoo (`standard_price`, configurabile con `ODOO_CAMPO_PREZZO`) supera `MESCITA_SOGLIA_PREZZO` (45 € di default), prima di aprire la bottiglia l'app chiede una conferma. La bottiglia resta segnata con 💶 e il nome di chi l'ha aperta, anche nello storico.
 
 ## Collegamento a Odoo
 Usa l'API XML-RPC standard (Odoo 14–18). Legge `stock.quant` per le giacenze e, alla chiusura, fa una rettifica di inventario (−1) sul prodotto. Crea un utente Odoo dedicato con permessi di magazzino e una chiave API. Senza `ODOO_URL` l'app gira in **modalità demo** con un magazzino finto.
