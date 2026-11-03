@@ -78,6 +78,8 @@ with db() as c:
     c.executescript(SCHEMA)
     if "aperta_ts" not in [r["name"] for r in c.execute("PRAGMA table_info(bottiglie)")]:
         c.execute("ALTER TABLE bottiglie ADD COLUMN aperta_ts TEXT")  # ora di apertura, UTC
+    if "scaricata_ts" not in [r["name"] for r in c.execute("PRAGMA table_info(bottiglie)")]:
+        c.execute("ALTER TABLE bottiglie ADD COLUMN scaricata_ts TEXT")  # quando Odoo ha confermato lo scarico
     c.execute("""INSERT OR IGNORE INTO abbinamenti_produttore
                  SELECT calice_product_id, '', calice_nome, vino_product_id FROM abbinamenti""")
 
@@ -217,6 +219,41 @@ def segna_finita(bid: int, f: Finita):
         return serializza(c.execute("SELECT * FROM bottiglie WHERE id=?", (bid,)).fetchone())
 
 
+@app.post("/api/bottiglie/{bid}/chiudi")
+def chiudi_bottiglia(bid: int):
+    """Bottiglia finita, confermata da una persona: la scarica subito da Odoo e la chiude.
+    Se lo scarico su Odoo non riesce, la bottiglia resta aperta e si può riprovare."""
+    with db() as c:
+        b = c.execute("SELECT * FROM bottiglie WHERE id=?", (bid,)).fetchone()
+        if not b or b["stato"] == "chiusa":
+            raise HTTPException(404, "Bottiglia non trovata")
+        try:
+            odoo.scarica_bottiglia(b["product_id"], 1)
+        except Exception as e:
+            raise HTTPException(502, f"Odoo non ha scaricato la bottiglia, riprova: {e}")
+        c.execute("""UPDATE bottiglie SET stato='chiusa', chiusa_il=?, giorni_aperta=?,
+                     faccina=?, scaricata_odoo=1, scaricata_ts=? WHERE id=?""",
+                  (oggi(), giorni_da(b["aperta_il"]), faccina(b["calici"]),
+                   datetime.now().isoformat(timespec="minutes"), bid))
+        return serializza(c.execute("SELECT * FROM bottiglie WHERE id=?", (bid,)).fetchone())
+
+
+@app.post("/api/bottiglie/{bid}/sincronizza")
+def risincronizza(bid: int):
+    """Riprova lo scarico su Odoo di una bottiglia chiusa ma non ancora scaricata."""
+    with db() as c:
+        b = c.execute("SELECT * FROM bottiglie WHERE id=?", (bid,)).fetchone()
+        if not b or b["stato"] != "chiusa" or b["scaricata_odoo"]:
+            raise HTTPException(400, "Niente da sincronizzare")
+        try:
+            odoo.scarica_bottiglia(b["product_id"], 1)
+        except Exception as e:
+            raise HTTPException(502, f"Odoo non ha scaricato la bottiglia, riprova: {e}")
+        c.execute("UPDATE bottiglie SET scaricata_odoo=1, scaricata_ts=? WHERE id=?",
+                  (datetime.now().isoformat(timespec="minutes"), bid))
+        return serializza(c.execute("SELECT * FROM bottiglie WHERE id=?", (bid,)).fetchone())
+
+
 @app.post("/api/sessione/chiudi")
 def chiudi_sessione():
     with db() as c:
@@ -233,6 +270,9 @@ def chiudi_sessione():
             c.execute("""UPDATE bottiglie SET stato='chiusa', chiusa_il=?, giorni_aperta=?,
                          faccina=?, scaricata_odoo=? WHERE id=?""",
                       (oggi(), g, faccina(b["calici"]), scaricata, b["id"]))
+            if scaricata:
+                c.execute("UPDATE bottiglie SET scaricata_ts=? WHERE id=?",
+                          (datetime.now().isoformat(timespec="minutes"), b["id"]))
             riepilogo["finite"].append(serializza(c.execute("SELECT * FROM bottiglie WHERE id=?", (b["id"],)).fetchone()))
         for b in c.execute("SELECT * FROM bottiglie WHERE stato='aperta'").fetchall():
             riepilogo["restano_aperte"].append(serializza(b))
