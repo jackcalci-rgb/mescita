@@ -519,6 +519,11 @@ def dashboard(settimane: int = 8):
         abb = {(a["calice_product_id"], a["produttore"]): a["vino_product_id"]
                for a in c.execute("SELECT * FROM abbinamenti_produttore")}
 
+    def nome_calice(nome):
+        """Nome del prodotto calice senza codice interno [..] e senza variante (..)."""
+        nome = re.sub(r"^\s*\[[^\]]*\]\s*", "", nome or "")
+        return re.sub(r"\s*\([^)]*\)\s*$", "", nome).strip()
+
     def tipo_di(categoria):
         return CATEGORIE.get(categoria, {}).get("nome", "")
 
@@ -542,10 +547,9 @@ def dashboard(settimane: int = 8):
             quando = datetime.strptime(r["data"][:19], "%Y-%m-%d %H:%M:%S").replace(tzinfo=timezone.utc)
             b = vino_della_riga(r)
             produttore = r.get("produttore") or ""
-            if b:
-                voce = (b["nome"], produttore, tipo_di(b["categoria"]))
-            else:
-                voce = (produttore or r.get("prodotto") or "?", "", r.get("prodotto") or "")
+            calice = nome_calice(r.get("prodotto"))   # es. "Merlot 100ML" (categoria Mescita)
+            voce = (produttore or calice or "?", calice if produttore else "",
+                    tipo_di(b["categoria"]) if b else "")
             vendite.append((quando.astimezone(tz), voce, r["qty"]))
     except Exception:
         fonte = "app"
@@ -575,8 +579,8 @@ def dashboard(settimane: int = 8):
     return {
         "fonte": fonte, "settimane": settimane, "totale": totale,
         "media_settimana": round(totale / settimane, 1),
-        "top": [{"nome": n, "produttore": p, "tipo": t, "calici": q}
-                for (n, p, t), q in top.most_common(10) if q > 0],
+        "top": [{"nome": n, "vino": v, "tipo": t, "calici": q}
+                for (n, v, t), q in top.most_common(10) if q > 0],
         "per_giorno": [{"giorno": GIORNI[i], "media": round(giorno[i] / settimane, 1)} for i in range(7)],
         "per_settimana": [{"settimana": d, "calici": settimana.get(d, 0)} for d in sett],
         "bottiglie": {"chiuse": chiuse["n"] or 0, "sorridenti": chiuse["ok"] or 0,

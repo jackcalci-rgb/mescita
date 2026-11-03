@@ -459,8 +459,8 @@ async function caricaDash(){
     <div class="stat"><div class="ico">${ic('bottle')}</div><div><b>${b.chiuse}</b><small>bottiglie finite · ${String(b.giorni_medi).replace('.', ',')} gg in media</small></div></div>
     <div class="stat"><div class="ico" style="background:var(--ok-soft);color:var(--ok)">${ic('smile')}</div><div><b>${perc}%</b><small>bottiglie da 7 calici</small></div></div>`;
   const maxT = Math.max(1, ...d.top.map(t => t.calici));
-  const sottotitolo = t => [t.produttore && !t.nome.toLowerCase().includes(t.produttore.toLowerCase()) ? t.produttore : '', t.tipo].filter(Boolean).join(' · ');
-  $('top').innerHTML = d.top.map((t, i) => `<div class="hbar"><span class="lbl" title="${esc(t.nome)}">${i + 1}. ${esc(t.nome)}${sottotitolo(t) ? `<small>${esc(sottotitolo(t))}</small>` : ''}</span><div class="trk"><div class="fill" style="width:${100 * t.calici / maxT}%;${i ? 'opacity:' + (1 - i * 0.07) : ''}"></div></div><span class="v">${t.calici}</span></div>`).join('')
+  const sottotitolo = t => [t.vino, t.tipo].filter(Boolean).join(' · ');
+  $('top').innerHTML = d.top.map((t, i) => `<div class="hbar"><span class="lbl" title="${esc([t.nome, sottotitolo(t)].filter(Boolean).join(' · '))}">${i + 1}. ${esc(t.nome)}${sottotitolo(t) ? `<small>${esc(sottotitolo(t))}</small>` : ''}</span><div class="trk"><div class="fill" style="width:${100 * t.calici / maxT}%;${i ? 'opacity:' + (1 - i * 0.07) : ''}"></div></div><span class="v">${t.calici}</span></div>`).join('')
     || `<div class="empty small">Nessun calice nel periodo.</div>`;
   const maxG = Math.max(0.1, ...d.per_giorno.map(g => g.media)), best = d.per_giorno.reduce((a, g) => g.media > a.media ? g : a, d.per_giorno[0]);
   $('giorni').innerHTML = d.per_giorno.map(g => `<div class="col"><div class="b ${g === best && g.media ? 'hi' : ''}" style="height:${85 * g.media / maxG}%"><span>${String(g.media).replace('.', ',')}</span></div><small>${g.giorno}</small></div>`).join('');
