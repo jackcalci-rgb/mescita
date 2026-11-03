@@ -30,7 +30,6 @@ table{width:100%;border-collapse:collapse;font-size:14px}td,th{padding:6px;borde
 <main>
   <div class="card row">
     <div class="grow" id="sessTxt">…</div>
-    <button id="btnApri" onclick="apriSessione()">Apri sessione</button>
     <button id="btnChiudi" onclick="chiudiSessione()">Chiudi sessione</button>
   </div>
 
@@ -81,8 +80,7 @@ async function init(){
 }
 async function carica(){
   SESS = await api('/api/sessione');
-  $('sessTxt').innerHTML = SESS ? `<b>Sessione aperta</b> <span class="muted">dal ${SESS.aperta_il.replace('T',' ')}</span>` : '<b>Nessuna sessione aperta</b> <span class="muted">— aprila per iniziare a servire</span>';
-  $('btnApri').disabled = !!SESS; $('btnChiudi').disabled = !SESS;
+  $('sessTxt').innerHTML = SESS ? `<b>Giornata in corso</b> <span class="muted">dal ${SESS.aperta_il.replace('T',' ')}</span>` : '<b>Pronto per servire</b> <span class="muted">— la giornata parte da sola al primo calice</span>';
   STOCK = await api('/api/stock');
   $('vino').innerHTML = STOCK.map(v => `<option value="${v.id}">${esc(v.name)} — ${v.qty} in stock</option>`).join('');
   aggCategoria();
@@ -94,9 +92,9 @@ async function carica(){
           <span class="muted">${esc(b.categoria_nome)} · aperta il ${b.aperta_il} · da ${b.giorni} gg (max ${b.max_giorni})</span>
           <span class="badge ${b.durata}">${{ok:'OK',attenzione:'Da finire presto',scaduta:'Oltre la durata!'}[b.durata]||''}</span>
           <div class="muted pos" data-vino="${b.product_id}"></div></div>
-        <button class="sec big" onclick="calice(${b.id},-1)" ${b.stato==='finita'||!SESS?'disabled':''}>−</button>
+        <button class="sec big" onclick="calice(${b.id},-1)" ${b.stato==='finita'?'disabled':''}>−</button>
         <div class="calici">${b.calici}<div class="muted" style="font-size:12px;font-weight:400">/ ${INFO.calici_per_bottiglia} calici</div></div>
-        <button class="big" onclick="calice(${b.id},1)" ${b.stato==='finita'||!SESS?'disabled':''}>+ calice</button>
+        <button class="big" onclick="calice(${b.id},1)" ${b.stato==='finita'?'disabled':''}>+ calice</button>
         ${b.stato==='finita'
           ? `<span class="face" title="Faccina che riceverà a chiusura">${faccia(b.faccina_prevista)}</span><button class="sec" onclick="finita(${b.id},false)">Annulla</button>`
           : `<button class="sec" onclick="finita(${b.id},true)">Bottiglia finita</button>`}
@@ -140,7 +138,6 @@ async function aggAbb(d, sel){
 }
 async function delAbb(pid, prod){ await fetch(`/api/abbinamenti?calice_product_id=${pid}&produttore=${encodeURIComponent(prod)}`, {method:'DELETE'}); await caricaPos(); caricaAbb(); }
 function aggCategoria(){ const v = STOCK.find(x => x.id == $('vino').value); if (v && v.categoria) $('categoria').value = v.categoria; }
-async function apriSessione(){ await api('/api/sessione/apri', {}); carica(); }
 async function apriBottiglia(){
   const v = STOCK.find(x => x.id == $('vino').value); if (!v) return;
   await api('/api/bottiglie', {product_id:v.id, nome:v.name, categoria:$('categoria').value}); carica();

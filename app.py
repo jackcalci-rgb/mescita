@@ -102,6 +102,16 @@ def sessione_aperta(c):
     return c.execute("SELECT * FROM sessioni WHERE chiusa_il IS NULL ORDER BY id DESC LIMIT 1").fetchone()
 
 
+def sessione_corrente(c):
+    """La sessione si apre da sola alla prima operazione della giornata."""
+    s = sessione_aperta(c)
+    if not s:
+        c.execute("INSERT INTO sessioni (data, aperta_il) VALUES (?, ?)",
+                  (oggi(), datetime.now().isoformat(timespec="seconds")))
+        s = sessione_aperta(c)
+    return s
+
+
 def serializza(b):
     d = dict(b)
     g = giorni_da(b["aperta_il"]) if b["stato"] != "chiusa" else b["giorni_aperta"]
@@ -165,8 +175,7 @@ def apri_bottiglia(b: NuovaBottiglia):
     if b.categoria not in CATEGORIE:
         raise HTTPException(400, "Categoria non valida")
     with db() as c:
-        if not sessione_aperta(c):
-            raise HTTPException(400, "Apri prima la sessione del giorno")
+        sessione_corrente(c)
         c.execute("INSERT OR REPLACE INTO categoria_prodotto VALUES (?, ?)", (b.product_id, b.categoria))
         cur = c.execute("INSERT INTO bottiglie (product_id, nome, categoria, aperta_il, aperta_ts) VALUES (?,?,?,?,?)",
                         (b.product_id, b.nome, b.categoria, oggi(), adesso_utc()))
@@ -180,9 +189,7 @@ class Delta(BaseModel):
 @app.post("/api/bottiglie/{bid}/calice")
 def vendi_calice(bid: int, d: Delta):
     with db() as c:
-        s = sessione_aperta(c)
-        if not s:
-            raise HTTPException(400, "Nessuna sessione aperta")
+        s = sessione_corrente(c)
         b = c.execute("SELECT * FROM bottiglie WHERE id=?", (bid,)).fetchone()
         if not b or b["stato"] == "chiusa":
             raise HTTPException(404, "Bottiglia non trovata")
@@ -213,9 +220,7 @@ def segna_finita(bid: int, f: Finita):
 @app.post("/api/sessione/chiudi")
 def chiudi_sessione():
     with db() as c:
-        s = sessione_aperta(c)
-        if not s:
-            raise HTTPException(400, "Nessuna sessione aperta")
+        s = sessione_corrente(c)
         riepilogo = {"finite": [], "restano_aperte": [], "errori": []}
         for b in c.execute("SELECT * FROM bottiglie WHERE stato='finita'").fetchall():
             try:

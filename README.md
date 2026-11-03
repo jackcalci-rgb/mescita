@@ -5,7 +5,7 @@ Web app per controllare le bottiglie aperte per la vendita a calice, collegata a
 ![Schermata](docs/screenshot.png)
 
 ## Come funziona
-1. **Apri sessione** a inizio servizio.
+1. La giornata parte da sola alla prima bottiglia aperta o al primo calice: non serve aprire la sessione.
 2. **Apri bottiglia**: scegli un vino dallo stock Odoo e la sua categoria (la categoria viene ricordata per le volte successive).
 3. **+ calice** a ogni calice venduto (− per correggere).
 4. **Bottiglia finita** quando è vuota: compare l'anteprima della faccina (😊 se 7 calici esatti, 😠 altrimenti).
