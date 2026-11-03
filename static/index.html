@@ -1,0 +1,116 @@
+<!doctype html>
+<html lang="it">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Mescita</title>
+<style>
+:root{--bg:#f7f3ee;--card:#fff;--ink:#2a1f1a;--muted:#7a6a60;--vino:#7b1e2b;--ok:#2e7d32;--warn:#e69500;--bad:#c62828;--line:#e5dcd3}
+@media (prefers-color-scheme:dark){:root{--bg:#1b1513;--card:#26201d;--ink:#f3ebe4;--muted:#b3a39a;--line:#3a312c}}
+*{box-sizing:border-box}body{margin:0;font-family:system-ui,-apple-system,Segoe UI,sans-serif;background:var(--bg);color:var(--ink)}
+header{background:var(--vino);color:#fff;padding:14px 16px;display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap}
+header h1{margin:0;font-size:20px}.demo{background:#fff3;padding:2px 8px;border-radius:10px;font-size:12px}
+main{max-width:900px;margin:0 auto;padding:16px}
+button{font:inherit;border:0;border-radius:10px;padding:10px 14px;cursor:pointer;background:var(--vino);color:#fff}
+button.sec{background:transparent;color:var(--ink);border:1px solid var(--line)}button:disabled{opacity:.4;cursor:default}
+.card{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:14px;margin-bottom:12px}
+.row{display:flex;gap:10px;align-items:center;flex-wrap:wrap}.grow{flex:1;min-width:160px}
+.muted{color:var(--muted);font-size:14px}h2{font-size:17px;margin:22px 0 10px}
+.calici{font-size:28px;font-weight:700;min-width:70px;text-align:center}
+.big{font-size:22px;padding:8px 18px}.badge{padding:2px 8px;border-radius:8px;font-size:12px;color:#fff}
+.ok{background:var(--ok)}.attenzione{background:var(--warn)}.scaduta{background:var(--bad)}
+.finita{opacity:.75;border-style:dashed}.face{font-size:34px}
+select,input{font:inherit;padding:9px;border-radius:10px;border:1px solid var(--line);background:var(--card);color:var(--ink)}
+dialog{border:0;border-radius:14px;max-width:520px;width:calc(100% - 32px);background:var(--card);color:var(--ink)}
+table{width:100%;border-collapse:collapse;font-size:14px}td,th{padding:6px;border-bottom:1px solid var(--line);text-align:left}
+</style>
+</head>
+<body>
+<header><h1>🍷 Mescita a calice</h1><div class="row"><span id="demo"></span><span id="sess" class="muted" style="color:#fff"></span></div></header>
+<main>
+  <div class="card row">
+    <div class="grow" id="sessTxt">…</div>
+    <button id="btnApri" onclick="apriSessione()">Apri sessione</button>
+    <button id="btnChiudi" onclick="chiudiSessione()">Chiudi sessione</button>
+  </div>
+
+  <h2>Apri una bottiglia dallo stock Odoo</h2>
+  <div class="card row">
+    <select id="vino" class="grow" onchange="aggCategoria()"></select>
+    <select id="categoria" class="grow"></select>
+    <button onclick="apriBottiglia()">Apri bottiglia</button>
+  </div>
+
+  <h2>Bottiglie aperte</h2>
+  <div id="aperte"></div>
+
+  <h2>Storico bottiglie finite</h2>
+  <div class="card"><table><thead><tr><th></th><th>Vino</th><th>Calici</th><th>Giorni</th><th>Chiusa il</th><th>Odoo</th></tr></thead><tbody id="storico"></tbody></table></div>
+</main>
+
+<dialog id="riep"><div id="riepBody"></div><p><button onclick="riep.close()">OK</button></p></dialog>
+
+<script>
+let INFO, STOCK = [], SESS = null;
+const $ = id => document.getElementById(id);
+const api = async (url, body) => {
+  const r = await fetch(url, body === undefined ? {} : {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(body)});
+  const j = await r.json();
+  if (!r.ok) { alert(j.detail || 'Errore'); throw j; }
+  return j;
+};
+const faccia = f => f === 'sorridente' ? '😊' : '😠';
+const esc = s => String(s).replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+
+async function init(){
+  INFO = await api('/api/info');
+  if (INFO.demo) $('demo').innerHTML = '<span class="demo">DEMO (Odoo non collegato)</span>';
+  $('categoria').innerHTML = Object.entries(INFO.categorie).map(([k,c]) => `<option value="${k}">${c.nome} (max ${c.max} gg)</option>`).join('');
+  await carica();
+}
+async function carica(){
+  SESS = await api('/api/sessione');
+  $('sessTxt').innerHTML = SESS ? `<b>Sessione aperta</b> <span class="muted">dal ${SESS.aperta_il.replace('T',' ')}</span>` : '<b>Nessuna sessione aperta</b> <span class="muted">— aprila per iniziare a servire</span>';
+  $('btnApri').disabled = !!SESS; $('btnChiudi').disabled = !SESS;
+  STOCK = await api('/api/stock');
+  $('vino').innerHTML = STOCK.map(v => `<option value="${v.id}">${esc(v.name)} — ${v.qty} in stock</option>`).join('');
+  aggCategoria();
+  const ap = await api('/api/bottiglie');
+  $('aperte').innerHTML = ap.length ? ap.map(b => `
+    <div class="card ${b.stato==='finita'?'finita':''}">
+      <div class="row">
+        <div class="grow"><b>${esc(b.nome)}</b><br>
+          <span class="muted">${esc(b.categoria_nome)} · aperta il ${b.aperta_il} · da ${b.giorni} gg (max ${b.max_giorni})</span>
+          <span class="badge ${b.durata}">${{ok:'OK',attenzione:'Da finire presto',scaduta:'Oltre la durata!'}[b.durata]||''}</span></div>
+        <button class="sec big" onclick="calice(${b.id},-1)" ${b.stato==='finita'||!SESS?'disabled':''}>−</button>
+        <div class="calici">${b.calici}<div class="muted" style="font-size:12px;font-weight:400">/ ${INFO.calici_per_bottiglia} calici</div></div>
+        <button class="big" onclick="calice(${b.id},1)" ${b.stato==='finita'||!SESS?'disabled':''}>+ calice</button>
+        ${b.stato==='finita'
+          ? `<span class="face" title="Faccina che riceverà a chiusura">${faccia(b.faccina_prevista)}</span><button class="sec" onclick="finita(${b.id},false)">Annulla</button>`
+          : `<button class="sec" onclick="finita(${b.id},true)">Bottiglia finita</button>`}
+      </div>
+    </div>`).join('') : '<div class="card muted">Nessuna bottiglia aperta.</div>';
+  const st = await api('/api/storico');
+  $('storico').innerHTML = st.map(b => `<tr><td class="face" style="font-size:22px">${faccia(b.faccina)}</td><td>${esc(b.nome)}</td><td>${b.calici}</td><td>${b.giorni_aperta}</td><td>${b.chiusa_il}</td><td>${b.scaricata_odoo?'✔ scaricata':'⚠ non scaricata'}</td></tr>`).join('') || '<tr><td colspan="6" class="muted">Ancora nessuna.</td></tr>';
+}
+function aggCategoria(){ const v = STOCK.find(x => x.id == $('vino').value); if (v && v.categoria) $('categoria').value = v.categoria; }
+async function apriSessione(){ await api('/api/sessione/apri', {}); carica(); }
+async function apriBottiglia(){
+  const v = STOCK.find(x => x.id == $('vino').value); if (!v) return;
+  await api('/api/bottiglie', {product_id:v.id, nome:v.name, categoria:$('categoria').value}); carica();
+}
+async function calice(id, d){ await api(`/api/bottiglie/${id}/calice`, {delta:d}); carica(); }
+async function finita(id, f){ await api(`/api/bottiglie/${id}/finita`, {finita:f}); carica(); }
+async function chiudiSessione(){
+  if (!confirm('Chiudere la sessione? Le bottiglie finite verranno scaricate da Odoo.')) return;
+  const r = await api('/api/sessione/chiudi', {});
+  $('riepBody').innerHTML = `<h3>Sessione chiusa · ${r.calici_sessione} calici venduti oggi</h3>
+    <h4>Bottiglie finite e scaricate</h4>${r.finite.map(b => `<p><span class="face">${faccia(b.faccina)}</span> ${esc(b.nome)}: ${b.calici} calici su ${INFO.calici_per_bottiglia}</p>`).join('') || '<p class="muted">Nessuna</p>'}
+    <h4>Restano aperte</h4>${r.restano_aperte.map(b => `<p>${esc(b.nome)} — da ${b.giorni} gg <span class="badge ${b.durata}">${b.durata}</span></p>`).join('') || '<p class="muted">Nessuna</p>'}
+    ${r.errori.length ? '<h4>Errori Odoo</h4>' + r.errori.map(e => `<p style="color:var(--bad)">${esc(e)}</p>`).join('') : ''}`;
+  riep.showModal(); carica();
+}
+init();
+</script>
+</body>
+</html>

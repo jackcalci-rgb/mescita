@@ -1,0 +1,13 @@
+[Unit]
+Description=Mescita a calice
+After=network.target
+
+[Service]
+WorkingDirectory=/opt/mescita-app
+EnvironmentFile=/opt/mescita-app/.env
+ExecStart=/opt/mescita-app/venv/bin/uvicorn app:app --host 127.0.0.1 --port 8765
+Restart=always
+User=www-data
+
+[Install]
+WantedBy=multi-user.target
