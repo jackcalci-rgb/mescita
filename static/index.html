@@ -50,10 +50,12 @@ table{width:100%;border-collapse:collapse;font-size:14px}td,th{padding:6px;borde
 
   <h2>Storico bottiglie finite</h2>
   <div class="card"><table><thead><tr><th></th><th>Vino</th><th>Calici</th><th>Giorni</th><th>Chiusa il</th><th>Odoo</th></tr></thead><tbody id="storico"></tbody></table></div>
-  <h2>Abbinamenti calice → bottiglia</h2>
+  <h2>Calici da abbinare</h2>
   <div class="card">
-    <div class="row"><select id="abbCalice" class="grow"></select><span>→</span><select id="abbVino" class="grow"></select><button onclick="aggAbb()">Abbina</button></div>
-    <table style="margin-top:10px"><tbody id="abbList"></tbody></table>
+    <p class="muted" style="margin:0 0 8px">Ogni calice viene assegnato in automatico alla bottiglia aperta che contiene nel nome il produttore scelto in cassa (attributo "Produttore"). Qui trovi quelli che l'app non riesce ad assegnare da sola.</p>
+    <table><tbody id="daAbbinare"></tbody></table>
+    <h3 style="font-size:15px;margin:14px 0 6px">Abbinamenti manuali</h3>
+    <table><tbody id="abbList"></tbody></table>
   </div>
 </main>
 
@@ -105,28 +107,38 @@ async function carica(){
   $('storico').innerHTML = st.map(b => `<tr><td class="face" style="font-size:22px">${faccia(b.faccina)}</td><td>${esc(b.nome)}</td><td>${b.calici}</td><td>${b.giorni_aperta}</td><td>${b.chiusa_il}</td><td>${b.scaricata_odoo?'✔ scaricata':'⚠ non scaricata'}</td></tr>`).join('') || '<tr><td colspan="6" class="muted">Ancora nessuna.</td></tr>';
 }
 const STATO = {draft:['Conto aperto','attenzione'], paid:['Pagato','ok'], done:['Pagato','ok'], invoiced:['Fatturato','ok']};
+let APERTE = [];
 async function caricaPos(){
   const p = await api('/api/pos/calici');
+  APERTE = p.per_vino;
   $('ordini').innerHTML = p.ordini.map(o => { const [t,c] = STATO[o.stato] || [o.stato,'ok'];
-    return `<tr><td>${esc(o.ordine)}</td><td>${esc(o.tavolo||'—')}</td><td><span class="badge ${c}">${t}</span></td><td>${o.righe.map(r => `${r.qty} × ${esc(r.calice)}`).join('<br>')}</td></tr>`; }).join('')
-    || '<tr><td colspan="4" class="muted">Nessun calice battuto in cassa per le bottiglie aperte.</td></tr>';
+    return `<tr><td>${esc(o.ordine)}</td><td>${esc(o.tavolo||'—')}</td><td><span class="badge ${c}">${t}</span></td><td>${o.righe.map(r =>
+      `${r.qty} × ${esc(r.calice)}${r.produttore ? ' · <b>' + esc(r.produttore) + '</b>' : ''} ${r.vino ? '→ ' + esc(r.vino) : '<span class="badge scaduta">' + esc(r.esito) + '</span>'}`).join('<br>')}</td></tr>`; }).join('')
+    || '<tr><td colspan="4" class="muted">Nessun calice battuto in cassa da quando sono aperte le bottiglie.</td></tr>';
   for (const v of p.per_vino) document.querySelectorAll(`.pos[data-vino="${v.vino_product_id}"]`).forEach(el => {
-    if (!v.abbinato) { el.innerHTML = 'Cassa: nessun prodotto calice abbinato (vedi in fondo)'; return; }
     const diff = v.differenza === 0 ? '<span class="badge ok">coincide</span>'
       : `<span class="badge scaduta">${v.differenza > 0 ? '+' : ''}${v.differenza} rispetto all'app</span>`;
     el.innerHTML = `Cassa: <b>${v.calici_cassa}</b> calici${v.calici_aperti ? ` (${v.calici_aperti} su conti aperti)` : ''} ${diff}${v.bottiglie > 1 ? ' · totale di ' + v.bottiglie + ' bottiglie' : ''}`;
   });
+  const opz = APERTE.map(v => `<option value="${v.vino_product_id}">${esc(v.nome)}</option>`).join('');
+  $('daAbbinare').innerHTML = p.da_abbinare.map((d, i) => `<tr><td>${d.qty} × ${esc(d.prodotto)}${d.produttore ? ' · <b>' + esc(d.produttore) + '</b>' : ''}<br><span class="muted">${esc(d.esito)}</span></td>
+      <td>${APERTE.length ? `<select id="da${i}">${opz}</select>` : '<span class="muted">nessuna bottiglia aperta</span>'}</td>
+      <td>${APERTE.length ? `<button class="sec" onclick='aggAbb(${JSON.stringify(d)}, "da${i}")'>Abbina</button>` : ''}</td></tr>`).join('')
+    || '<tr><td class="muted">Tutti i calici in cassa sono assegnati a una bottiglia. 👍</td></tr>';
 }
 async function caricaAbb(){
-  const [prod, abb] = await Promise.all([api('/api/pos/prodotti'), api('/api/abbinamenti')]);
-  $('abbCalice').innerHTML = prod.map(p => `<option value="${p.id}">${esc(p.name)}</option>`).join('');
-  $('abbVino').innerHTML = STOCK.map(v => `<option value="${v.id}">${esc(v.name)}</option>`).join('');
-  const nomeVino = id => (STOCK.find(v => v.id == id) || {name:'#' + id}).name;
-  $('abbList').innerHTML = abb.map(a => `<tr><td>${esc(a.calice_nome)}</td><td>→ ${esc(nomeVino(a.vino_product_id))}</td><td><button class="sec" onclick="delAbb(${a.calice_product_id})">Rimuovi</button></td></tr>`).join('')
-    || '<tr><td class="muted">Abbina ogni prodotto "calice" del POS alla sua bottiglia per vedere i calici in cassa.</td></tr>';
+  const abb = await api('/api/abbinamenti');
+  const nomeVino = id => (STOCK.find(v => v.id == id) || APERTE.find(v => v.vino_product_id == id) || {name:'#' + id}).name || ('#' + id);
+  $('abbList').innerHTML = abb.map(a => `<tr><td>${esc(a.descrizione)}</td><td>→ ${esc(nomeVino(a.vino_product_id))}</td><td><button class="sec" onclick='delAbb(${a.calice_product_id}, ${JSON.stringify(a.produttore)})'>Rimuovi</button></td></tr>`).join('')
+    || '<tr><td class="muted">Nessuno: per ora basta l\'abbinamento automatico per produttore.</td></tr>';
 }
-async function aggAbb(){ const s = $('abbCalice'); await api('/api/abbinamenti', {calice_product_id:+s.value, calice_nome:s.options[s.selectedIndex].text, vino_product_id:+$('abbVino').value}); caricaAbb(); caricaPos(); }
-async function delAbb(id){ await fetch('/api/abbinamenti/' + id, {method:'DELETE'}); caricaAbb(); caricaPos(); }
+async function aggAbb(d, sel){
+  const vid = +$(sel).value, v = APERTE.find(x => x.vino_product_id == vid);
+  await api('/api/abbinamenti', {calice_product_id:d.calice_product_id, produttore:d.produttore,
+    descrizione:`${d.prodotto}${d.produttore ? ' · ' + d.produttore : ''}`, vino_product_id:vid});
+  await caricaPos(); caricaAbb();
+}
+async function delAbb(pid, prod){ await fetch(`/api/abbinamenti?calice_product_id=${pid}&produttore=${encodeURIComponent(prod)}`, {method:'DELETE'}); await caricaPos(); caricaAbb(); }
 function aggCategoria(){ const v = STOCK.find(x => x.id == $('vino').value); if (v && v.categoria) $('categoria').value = v.categoria; }
 async function apriSessione(){ await api('/api/sessione/apri', {}); carica(); }
 async function apriBottiglia(){
@@ -144,7 +156,7 @@ async function chiudiSessione(){
     ${r.errori.length ? '<h4>Errori Odoo</h4>' + r.errori.map(e => `<p style="color:var(--bad)">${esc(e)}</p>`).join('') : ''}`;
   riep.showModal(); carica();
 }
-init().then(caricaAbb);
+init().then(() => caricaPos()).then(caricaAbb);
 setInterval(caricaPos, 30000);
 </script>
 </body>

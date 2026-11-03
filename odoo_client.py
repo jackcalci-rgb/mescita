@@ -18,6 +18,9 @@ class OdooClient:
         self.categ_name = os.getenv("ODOO_WINE_CATEGORY", "")
         # Categoria prodotto Odoo dei calici venduti al POS (es. "Mescita")
         self.calice_categ = os.getenv("ODOO_CALICE_CATEGORY", "")
+        # Attributo del calice che indica il produttore (vale anche per
+        # "Produttore Classico" e "Produttore Charmat")
+        self.attr_produttore = os.getenv("ODOO_ATTRIBUTO_PRODUTTORE", "Produttore")
         self.demo = not self.url
         self._uid = None
         self._demo_stock = {
@@ -28,11 +31,11 @@ class OdooClient:
             5: {"id": 5, "name": "Barolo DOCG", "qty": 3, "categ": "rosso_corposo"},
             6: {"id": 6, "name": "Passito di Pantelleria", "qty": 2, "categ": "dolce"},
         }
-        # ordini POS finti per la demo (prodotto 105 = "Calice Barolo DOCG")
+        # ordini POS finti per la demo (calici con attributo produttore)
         self._demo_pos = [
-            {"ordine": "Ristorante/0001", "tavolo": "T3", "stato": "paid", "product_id": 105, "qty": 2, "data": "2000-01-01 00:00:00"},
-            {"ordine": "Ristorante/0002", "tavolo": "T5", "stato": "draft", "product_id": 105, "qty": 3, "data": "2000-01-01 00:00:00"},
-            {"ordine": "Ristorante/0002", "tavolo": "T5", "stato": "draft", "product_id": 101, "qty": 1, "data": "2000-01-01 00:00:00"},
+            {"ordine": "Ristorante/0001", "tavolo": "T3", "stato": "paid", "product_id": 900, "prodotto": "Calice Rosso", "produttore": "Barolo", "qty": 2, "data": "2000-01-01 00:00:00"},
+            {"ordine": "Ristorante/0002", "tavolo": "T5", "stato": "draft", "product_id": 900, "prodotto": "Calice Rosso", "produttore": "Barolo", "qty": 3, "data": "2000-01-01 00:00:00"},
+            {"ordine": "Ristorante/0002", "tavolo": "T5", "stato": "draft", "product_id": 901, "prodotto": "Calice Bollicine", "produttore": "Franciacorta", "qty": 1, "data": "2000-01-01 00:00:00"},
         ]
 
     # --- connessione -------------------------------------------------------
@@ -121,44 +124,72 @@ class OdooClient:
     def prodotti_pos(self):
         """Prodotti vendibili al POS (per abbinare 'Calice X' alla bottiglia X)."""
         if self.demo:
-            return [{"id": 100 + v["id"], "name": f"Calice {v['name']}"} for v in self._demo_stock.values()]
+            return [{"id": 900, "name": "Calice Rosso"}, {"id": 901, "name": "Calice Bollicine"}]
         domain = [("available_in_pos", "=", True)]
         domain += self._filtro_categorie(self.calice_categ)
         return self._call("product.product", "search_read", domain,
                           fields=["id", "name"], order="name")
 
+    def _produttori_di(self, ptav_ids):
+        """{ptav_id: nome valore} solo per gli attributi 'Produttore...'."""
+        if not ptav_ids:
+            return {}
+        vals = self._call("product.template.attribute.value", "read", list(ptav_ids),
+                          fields=["name", "attribute_id"])
+        return {v["id"]: v["name"] for v in vals
+                if v.get("attribute_id") and self.attr_produttore.lower() in v["attribute_id"][1].lower()}
+
     def righe_pos(self, product_ids, dal_utc: str):
         """Righe d'ordine POS (anche ordini non ancora pagati) per i prodotti dati.
 
         dal_utc: 'YYYY-MM-DD HH:MM:SS' in UTC (come le date di Odoo).
-        Ritorna [{ordine, tavolo, stato, product_id, qty, data}].
+        Ritorna [{ordine, tavolo, stato, product_id, prodotto, produttore, qty, data}].
+        Il produttore arriva dall'attributo "Produttore" / "Produttore Classico" /
+        "Produttore Charmat" del calice, sia come variante sia come attributo senza variante.
         Nota: un ordine compare qui appena la cassa lo sincronizza con Odoo
         (in modalità ristorante: a ogni invio in cucina / cambio tavolo / pagamento).
         """
         if not product_ids:
             return []
         if self.demo:
-            return [dict(r) for r in self._demo_pos if r["product_id"] in product_ids]
-        righe = self._call("pos.order.line", "search_read",
-                           [("product_id", "in", list(product_ids)), ("create_date", ">=", dal_utc),
-                            ("order_id.state", "!=", "cancel")],
-                           fields=["order_id", "product_id", "qty", "create_date"])
+            return [{**r, "data": dal_utc} for r in self._demo_pos if r["product_id"] in product_ids]
+        dom = [("product_id", "in", list(product_ids)), ("create_date", ">=", dal_utc),
+               ("order_id.state", "!=", "cancel")]
+        campi = ["order_id", "product_id", "qty", "create_date"]
+        try:
+            righe = self._call("pos.order.line", "search_read", dom, fields=campi + ["attribute_value_ids"])
+        except Exception:  # versioni senza attributi sulle righe POS
+            righe = self._call("pos.order.line", "search_read", dom, fields=campi)
+        # attributi delle varianti (se il produttore crea varianti di prodotto)
+        pids = list({r["product_id"][0] for r in righe})
+        var_ptav = {}
+        if pids:
+            for p in self._call("product.product", "read", pids, fields=["product_template_attribute_value_ids"]):
+                var_ptav[p["id"]] = p.get("product_template_attribute_value_ids") or []
+        tutti = {x for r in righe for x in (r.get("attribute_value_ids") or [])}
+        tutti |= {x for v in var_ptav.values() for x in v}
+        produttori = self._produttori_di(tutti)
+
         ordini = {}
         ids = list({r["order_id"][0] for r in righe})
         if ids:
-            campi = ["id", "name", "state"]
+            campi_o = ["id", "name", "state"]
             try:
-                info = self._call("pos.order", "read", ids, fields=campi + ["table_id"])
+                info = self._call("pos.order", "read", ids, fields=campi_o + ["table_id"])
             except Exception:  # POS senza modulo ristorante: niente tavoli
-                info = self._call("pos.order", "read", ids, fields=campi)
+                info = self._call("pos.order", "read", ids, fields=campi_o)
             ordini = {o["id"]: o for o in info}
         out = []
         for r in righe:
             o = ordini.get(r["order_id"][0], {})
             tav = o.get("table_id")
+            pid = r["product_id"][0]
+            prod = next((produttori[x] for x in (r.get("attribute_value_ids") or []) + var_ptav.get(pid, [])
+                         if x in produttori), "")
             out.append({"ordine": o.get("name", r["order_id"][1]),
                         "tavolo": tav[1] if tav else None,
                         "stato": o.get("state", "draft"),
-                        "product_id": r["product_id"][0],
+                        "product_id": pid, "prodotto": r["product_id"][1],
+                        "produttore": prod,
                         "qty": r["qty"], "data": r["create_date"]})
         return out
