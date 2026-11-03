@@ -24,6 +24,11 @@ Le bottiglie non finite restano aperte e si vede da quanti giorni lo sono, con a
 Badge: verde = OK, arancione = tra min e max (da finire presto), rosso = oltre la durata massima.
 Durate e calici per bottiglia si cambiano in `categorie.py`.
 
+## Dashboard (amministratore)
+Calici più venduti (per produttore), media calici per giorno della settimana e calici per settimana, su 4, 8, 12 o 26 settimane. I dati arrivano dalla cassa Odoo; se la cassa non è raggiungibile usa i calici segnati nell'app. Mostra anche le bottiglie finite, i giorni medi di apertura e la percentuale di bottiglie da 7 calici.
+
+![Dashboard](docs/dashboard.png)
+
 ## Accesso e dipendenti
 Ogni persona entra con **nome e PIN**. Al primo avvio l'app crea l'amministratore `admin` con password uguale a `MESCITA_PASSWORD` del `.env` (o `0000` se vuota): entra, cambia il PIN da "Dipendenti" in fondo alla pagina e aggiungi i dipendenti. L'amministratore può aggiungere, disattivare/riattivare e cambiare il PIN di ognuno. L'app registra chi apre e chi chiude ogni bottiglia e chi segna i calici.
 

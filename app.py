@@ -498,6 +498,60 @@ def pos_calici():
             "da_abbinare": list(da_abbinare.values())}
 
 
+# ---------------------------------------------------------------- dashboard
+GIORNI = ["Lun", "Mar", "Mer", "Gio", "Ven", "Sab", "Dom"]
+
+
+@app.get("/api/dashboard")
+def dashboard(settimane: int = 8):
+    """Calici più venduti e frequenza settimanale. Usa le righe della cassa Odoo;
+    se la cassa non è raggiungibile usa i calici segnati nell'app."""
+    from collections import Counter, defaultdict
+    from datetime import timedelta
+    from zoneinfo import ZoneInfo
+    tz = ZoneInfo(os.getenv("MESCITA_TZ", "Europe/Rome"))
+    settimane = max(1, min(settimane, 52))
+    inizio = datetime.now(timezone.utc) - timedelta(weeks=settimane)
+    vendite, fonte = [], "cassa"
+    try:
+        ids = {p["id"] for p in odoo.prodotti_pos()}
+        for r in odoo.righe_pos(ids, inizio.strftime("%Y-%m-%d %H:%M:%S")):
+            quando = datetime.strptime(r["data"][:19], "%Y-%m-%d %H:%M:%S").replace(tzinfo=timezone.utc)
+            vendite.append((quando.astimezone(tz), r.get("produttore") or r.get("prodotto") or "?", r["qty"]))
+    except Exception:
+        fonte = "app"
+    if fonte == "app" or not vendite:
+        fonte, vendite = "app", []
+        with db() as c:
+            for r in c.execute("""SELECT v.ts, v.calici, b.nome FROM vendite v JOIN bottiglie b ON b.id = v.bottiglia_id
+                                  WHERE v.ts >= ?""", (inizio.astimezone(tz).replace(tzinfo=None).isoformat(),)):
+                vendite.append((datetime.fromisoformat(r["ts"]).replace(tzinfo=tz), r["nome"], r["calici"]))
+    top, giorno, settimana = Counter(), defaultdict(float), Counter()
+    for quando, nome, q in vendite:
+        top[nome] += q
+        giorno[quando.weekday()] += q
+        lun = (quando - timedelta(days=quando.weekday())).date()
+        settimana[lun.isoformat()] += q
+    oggi_ = datetime.now(tz).date()
+    lunedi = oggi_ - timedelta(days=oggi_.weekday())
+    sett = [(lunedi - timedelta(weeks=i)).isoformat() for i in range(settimane, -1, -1)]
+    with db() as c:
+        chiuse = c.execute("""SELECT COUNT(*) n, SUM(faccina='sorridente') ok, AVG(giorni_aperta) gg,
+                              SUM(CASE WHEN prezzo > ? THEN 1 ELSE 0 END) care
+                              FROM bottiglie WHERE stato='chiusa' AND chiusa_il >= ?""",
+                           (SOGLIA_PREZZO, (oggi_ - timedelta(weeks=settimane)).isoformat())).fetchone()
+    totale = sum(q for _, _, q in vendite)
+    return {
+        "fonte": fonte, "settimane": settimane, "totale": totale,
+        "media_settimana": round(totale / settimane, 1),
+        "top": [{"nome": n, "calici": q} for n, q in top.most_common(10) if q > 0],
+        "per_giorno": [{"giorno": GIORNI[i], "media": round(giorno[i] / settimane, 1)} for i in range(7)],
+        "per_settimana": [{"settimana": d, "calici": settimana.get(d, 0)} for d in sett],
+        "bottiglie": {"chiuse": chiuse["n"] or 0, "sorridenti": chiuse["ok"] or 0,
+                      "giorni_medi": round(chiuse["gg"] or 0, 1), "costose": chiuse["care"] or 0},
+    }
+
+
 app.mount("/static", StaticFiles(directory=os.path.join(os.path.dirname(__file__), "static")), name="static")
 
 
