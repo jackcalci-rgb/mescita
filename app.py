@@ -504,15 +504,27 @@ GIORNI = ["Lun", "Mar", "Mer", "Gio", "Ven", "Sab", "Dom"]
 
 
 @app.get("/api/dashboard")
-def dashboard(settimane: int = 8):
-    """Calici più venduti e frequenza settimanale. Usa le righe della cassa Odoo;
-    se la cassa non è raggiungibile usa i calici segnati nell'app."""
+def dashboard(settimane: int = 8, dal: Optional[str] = None, al: Optional[str] = None):
+    """Calici più venduti e frequenza settimanale nel periodo scelto (dal/al, date incluse,
+    oppure le ultime N settimane). Usa le righe della cassa Odoo; se la cassa non è
+    raggiungibile usa i calici segnati nell'app."""
     from collections import Counter, defaultdict
     from datetime import timedelta
     from zoneinfo import ZoneInfo
     tz = ZoneInfo(os.getenv("MESCITA_TZ", "Europe/Rome"))
-    settimane = max(1, min(settimane, 52))
-    inizio = datetime.now(timezone.utc) - timedelta(weeks=settimane)
+    oggi_ = datetime.now(tz).date()
+    try:
+        d_al = date.fromisoformat(al) if al else oggi_
+        d_dal = date.fromisoformat(dal) if dal else d_al - timedelta(weeks=max(1, min(settimane, 52)))
+    except ValueError:
+        raise HTTPException(400, "Date non valide (formato AAAA-MM-GG)")
+    if d_dal > d_al:
+        d_dal, d_al = d_al, d_dal
+    d_dal = max(d_dal, d_al - timedelta(days=731))          # al massimo due anni
+    inizio = datetime.combine(d_dal, datetime.min.time(), tz).astimezone(timezone.utc)
+    fine = datetime.combine(d_al + timedelta(days=1), datetime.min.time(), tz).astimezone(timezone.utc)
+    giorni_periodo = (d_al - d_dal).days + 1
+    settimane = giorni_periodo / 7
     with db() as c:
         bott = c.execute("SELECT product_id, nome, categoria, aperta_ts, aperta_il FROM bottiglie "
                          "ORDER BY COALESCE(aperta_ts, aperta_il) DESC").fetchall()
@@ -550,15 +562,17 @@ def dashboard(settimane: int = 8):
             calice = nome_calice(r.get("prodotto"))   # es. "Merlot 100ML" (categoria Mescita)
             voce = (produttore or calice or "?", calice if produttore else "",
                     tipo_di(b["categoria"]) if b else "")
-            vendite.append((quando.astimezone(tz), voce, r["qty"]))
+            if quando < fine:
+                vendite.append((quando.astimezone(tz), voce, r["qty"]))
     except Exception:
         fonte = "app"
     if fonte == "app" or not vendite:
         fonte, vendite = "app", []
         with db() as c:
             for r in c.execute("""SELECT v.ts, v.calici, b.nome, b.categoria FROM vendite v
-                                  JOIN bottiglie b ON b.id = v.bottiglia_id WHERE v.ts >= ?""",
-                               (inizio.astimezone(tz).replace(tzinfo=None).isoformat(),)):
+                                  JOIN bottiglie b ON b.id = v.bottiglia_id WHERE v.ts >= ? AND v.ts < ?""",
+                               (inizio.astimezone(tz).replace(tzinfo=None).isoformat(),
+                                fine.astimezone(tz).replace(tzinfo=None).isoformat())):
                 vendite.append((datetime.fromisoformat(r["ts"]).replace(tzinfo=tz),
                                 (r["nome"], "", tipo_di(r["categoria"])), r["calici"]))
     top, giorno, settimana = Counter(), defaultdict(float), Counter()
@@ -567,21 +581,22 @@ def dashboard(settimane: int = 8):
         giorno[quando.weekday()] += q
         lun = (quando - timedelta(days=quando.weekday())).date()
         settimana[lun.isoformat()] += q
-    oggi_ = datetime.now(tz).date()
-    lunedi = oggi_ - timedelta(days=oggi_.weekday())
-    sett = [(lunedi - timedelta(weeks=i)).isoformat() for i in range(settimane, -1, -1)]
+    primo_lun = d_dal - timedelta(days=d_dal.weekday())
+    sett = [(primo_lun + timedelta(weeks=i)).isoformat() for i in range((d_al - primo_lun).days // 7 + 1)]
+    quanti = Counter((d_dal + timedelta(days=i)).weekday() for i in range(giorni_periodo))  # es. quanti lunedì
     with db() as c:
         chiuse = c.execute("""SELECT COUNT(*) n, SUM(faccina='sorridente') ok, AVG(giorni_aperta) gg,
                               SUM(CASE WHEN prezzo > ? THEN 1 ELSE 0 END) care
-                              FROM bottiglie WHERE stato='chiusa' AND chiusa_il >= ?""",
-                           (SOGLIA_PREZZO, (oggi_ - timedelta(weeks=settimane)).isoformat())).fetchone()
+                              FROM bottiglie WHERE stato='chiusa' AND chiusa_il >= ? AND chiusa_il <= ?""",
+                           (SOGLIA_PREZZO, d_dal.isoformat(), d_al.isoformat())).fetchone()
     totale = sum(q for _, _, q in vendite)
     return {
-        "fonte": fonte, "settimane": settimane, "totale": totale,
-        "media_settimana": round(totale / settimane, 1),
+        "fonte": fonte, "dal": d_dal.isoformat(), "al": d_al.isoformat(), "giorni": giorni_periodo,
+        "totale": totale,
+        "media_settimana": round(totale / max(1, settimane), 1),
         "top": [{"nome": n, "vino": v, "tipo": t, "calici": q}
                 for (n, v, t), q in top.most_common(10) if q > 0],
-        "per_giorno": [{"giorno": GIORNI[i], "media": round(giorno[i] / settimane, 1)} for i in range(7)],
+        "per_giorno": [{"giorno": GIORNI[i], "media": round(giorno[i] / max(1, quanti[i]), 1)} for i in range(7)],
         "per_settimana": [{"settimana": d, "calici": settimana.get(d, 0)} for d in sett],
         "bottiglie": {"chiuse": chiuse["n"] or 0, "sorridenti": chiuse["ok"] or 0,
                       "giorni_medi": round(chiuse["gg"] or 0, 1), "costose": chiuse["care"] or 0},

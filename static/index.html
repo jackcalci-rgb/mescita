@@ -87,6 +87,10 @@ h3{font-size:13px;margin:22px 0 10px;color:var(--muted);text-transform:uppercase
 .qty{background:var(--ink);color:#fff;border-radius:8px;font-size:12px;font-weight:700;padding:2px 7px}
 
 /* dashboard */
+.periodo{display:flex;flex-wrap:wrap;gap:8px;align-items:center}
+.periodo select{width:auto}
+.periodo label{display:flex;align-items:center;gap:6px;font-size:13px;color:var(--muted)}
+.periodo input[type=date]{width:auto;padding:8px 10px}
 .dash{display:grid;grid-template-columns:1.2fr 1fr;gap:14px}
 .hbar{display:grid;grid-template-columns:minmax(90px,38%) 1fr 34px;gap:10px;align-items:center;font-size:14px;margin:7px 0}
 .hbar .lbl{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
@@ -182,11 +186,15 @@ dialog::backdrop{background:rgba(27,25,24,.45);backdrop-filter:blur(2px)}
   <section class="tab" id="tab-dashboard" hidden>
     <div class="row" style="justify-content:space-between">
       <h2>Dashboard</h2>
-      <select id="periodo" style="width:auto" onchange="caricaDash()">
-        <option value="4">Ultime 4 settimane</option><option value="8" selected>Ultime 8 settimane</option><option value="12">Ultime 12 settimane</option><option value="26">Ultimi 6 mesi</option>
-      </select>
+      <div class="periodo">
+        <select id="periodo" onchange="scegliPeriodo()">
+          <option value="7g">Ultimi 7 giorni</option><option value="4">Ultime 4 settimane</option><option value="8" selected>Ultime 8 settimane</option><option value="12">Ultime 12 settimane</option><option value="26">Ultimi 6 mesi</option><option value="mese">Questo mese</option><option value="mese-1">Mese scorso</option><option value="anno">Quest'anno</option><option value="libero">Date a scelta</option>
+        </select>
+        <label>dal <input type="date" id="dal" onchange="dateLibere()"></label>
+        <label>al <input type="date" id="al" onchange="dateLibere()"></label>
+      </div>
     </div>
-    <p class="muted small" id="fonte" style="margin-top:-6px"></p>
+    <p class="muted small" id="fonte" style="margin-top:6px"></p>
     <div class="stats" id="kpi"></div>
     <div class="dash">
       <div class="card"><h3 style="margin-top:0">Calici più venduti</h3><div id="top"></div></div>
@@ -449,8 +457,26 @@ async function caricaStorico(){
 async function sincronizza(id){ try { await api(`/api/bottiglie/${id}/sincronizza`, {}); toast('Sincronizzata con Odoo'); } catch (e) {} caricaStorico(); }
 
 // ---------------- dashboard
+const isoLocale = d => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+function scegliPeriodo(){
+  const v = $('periodo').value, oggi = new Date();
+  let dal = new Date(oggi), al = new Date(oggi);
+  if (v === 'libero') { $('dal').focus(); return; }
+  if (v === '7g') dal.setDate(oggi.getDate() - 6);
+  else if (v === 'mese') dal = new Date(oggi.getFullYear(), oggi.getMonth(), 1);
+  else if (v === 'mese-1') { dal = new Date(oggi.getFullYear(), oggi.getMonth() - 1, 1); al = new Date(oggi.getFullYear(), oggi.getMonth(), 0); }
+  else if (v === 'anno') dal = new Date(oggi.getFullYear(), 0, 1);
+  else dal.setDate(oggi.getDate() - 7 * Number(v));
+  $('dal').value = isoLocale(dal); $('al').value = isoLocale(al);
+  caricaDash();
+}
+function dateLibere(){
+  $('periodo').value = 'libero';
+  if ($('dal').value && $('al').value) caricaDash();
+}
 async function caricaDash(){
-  const d = await api('/api/dashboard?settimane=' + $('periodo').value);
+  if (!$('dal').value || !$('al').value) return scegliPeriodo();
+  const d = await api(`/api/dashboard?dal=${$('dal').value}&al=${$('al').value}`);
   $('fonte').textContent = d.fonte === 'cassa' ? 'Dati dalla cassa Odoo (tutti i calici battuti).' : 'Dati dai calici segnati nell\'app (cassa Odoo non disponibile).';
   const b = d.bottiglie, perc = b.chiuse ? Math.round(100 * b.sorridenti / b.chiuse) : 0;
   $('kpi').innerHTML = `
