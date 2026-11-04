@@ -42,6 +42,10 @@ CREATE TABLE IF NOT EXISTS abbinamenti_produttore (
   calice_product_id INTEGER NOT NULL DEFAULT 0, produttore TEXT NOT NULL DEFAULT '',
   descrizione TEXT NOT NULL, vino_product_id INTEGER NOT NULL,
   PRIMARY KEY (calice_product_id, produttore));
+-- calici bevuti dal personale, offerti, assaggi o versati: escono dalla bottiglia ma non dalla cassa
+CREATE TABLE IF NOT EXISTS autoconsumo (
+  id INTEGER PRIMARY KEY, bottiglia_id INTEGER NOT NULL, product_id INTEGER NOT NULL, nome TEXT NOT NULL,
+  calici INTEGER NOT NULL, motivo TEXT NOT NULL, nota TEXT NOT NULL DEFAULT '', utente TEXT, ts TEXT NOT NULL);
 """
 
 
@@ -61,7 +65,8 @@ with db() as c:
     if "aperta_ts" not in [r["name"] for r in c.execute("PRAGMA table_info(bottiglie)")]:
         c.execute("ALTER TABLE bottiglie ADD COLUMN aperta_ts TEXT")  # ora di apertura, UTC
     auth.init(c)
-    for col, tipo in (("aperta_da", "TEXT"), ("chiusa_da", "TEXT"), ("prezzo", "REAL")):
+    for col, tipo in (("aperta_da", "TEXT"), ("chiusa_da", "TEXT"), ("prezzo", "REAL"),
+                      ("autoconsumo", "INTEGER NOT NULL DEFAULT 0")):
         if col not in [r["name"] for r in c.execute("PRAGMA table_info(bottiglie)")]:
             c.execute(f"ALTER TABLE bottiglie ADD COLUMN {col} {tipo}")
     if "utente" not in [r["name"] for r in c.execute("PRAGMA table_info(vendite)")]:
@@ -228,7 +233,7 @@ def serializza(b):
 # ---------------------------------------------------------------- API
 @app.get("/api/info")
 def info():
-    return {"demo": odoo.demo, "calici_per_bottiglia": CALICI_PER_BOTTIGLIA, "soglia_prezzo": SOGLIA_PREZZO,
+    return {"demo": odoo.demo, "calici_per_bottiglia": CALICI_PER_BOTTIGLIA, "motivi_autoconsumo": MOTIVI_AUTOCONSUMO, "soglia_prezzo": SOGLIA_PREZZO,
             "categorie": CATEGORIE, "oggi": oggi()}
 
 
@@ -312,6 +317,75 @@ def vendi_calice(bid: int, d: Delta, request: Request):
         c.execute("INSERT INTO vendite (bottiglia_id, sessione_id, ts, calici, utente) VALUES (?,?,?,?,?)",
                   (bid, s["id"], datetime.now().isoformat(timespec="seconds"), d.delta, chi(request)))
         return serializza(c.execute("SELECT * FROM bottiglie WHERE id=?", (bid,)).fetchone())
+
+
+MOTIVI_AUTOCONSUMO = {"personale": "Bevuto dal personale", "offerto": "Offerto al cliente",
+                      "assaggio": "Assaggio", "versato": "Rotto o versato"}
+
+
+class Autoconsumo(BaseModel):
+    calici: int = 1
+    motivo: str = "personale"
+    nota: str = ""
+
+
+@app.post("/api/bottiglie/{bid}/autoconsumo")
+def segna_autoconsumo(bid: int, a: Autoconsumo, request: Request):
+    """Calici usciti dalla bottiglia senza passare dalla cassa (personale, offerti, assaggi...).
+    Contano tra i calici della bottiglia ma non tra quelli venduti."""
+    if a.motivo not in MOTIVI_AUTOCONSUMO:
+        raise HTTPException(400, "Motivo non valido")
+    if not 1 <= a.calici <= CALICI_PER_BOTTIGLIA:
+        raise HTTPException(400, f"Da 1 a {CALICI_PER_BOTTIGLIA} calici")
+    with db() as c:
+        b = c.execute("SELECT * FROM bottiglie WHERE id=?", (bid,)).fetchone()
+        if not b or b["stato"] == "chiusa":
+            raise HTTPException(404, "Bottiglia non trovata")
+        c.execute("""INSERT INTO autoconsumo (bottiglia_id, product_id, nome, calici, motivo, nota, utente, ts)
+                     VALUES (?,?,?,?,?,?,?,?)""",
+                  (bid, b["product_id"], b["nome"], a.calici, a.motivo, a.nota.strip()[:200], chi(request),
+                   datetime.now().isoformat(timespec="seconds")))
+        c.execute("UPDATE bottiglie SET calici = calici + ?, autoconsumo = autoconsumo + ? WHERE id=?",
+                  (a.calici, a.calici, bid))
+        return serializza(c.execute("SELECT * FROM bottiglie WHERE id=?", (bid,)).fetchone())
+
+
+@app.get("/api/autoconsumo")
+def lista_autoconsumo(dal: Optional[str] = None, al: Optional[str] = None):
+    from datetime import timedelta
+    al_ = date.fromisoformat(al) if al else date.today()
+    dal_ = date.fromisoformat(dal) if dal else al_ - timedelta(days=30)
+    with db() as c:
+        righe = [dict(r) for r in c.execute(
+            "SELECT * FROM autoconsumo WHERE ts >= ? AND ts < ? ORDER BY ts DESC",
+            (dal_.isoformat(), (al_ + timedelta(days=1)).isoformat()))]
+    per_motivo, per_utente = {}, {}
+    for r in righe:
+        r["motivo_nome"] = MOTIVI_AUTOCONSUMO.get(r["motivo"], r["motivo"])
+        per_motivo[r["motivo"]] = per_motivo.get(r["motivo"], 0) + r["calici"]
+        per_utente[r["utente"] or "?"] = per_utente.get(r["utente"] or "?", 0) + r["calici"]
+    return {"dal": dal_.isoformat(), "al": al_.isoformat(), "righe": righe, "motivi": MOTIVI_AUTOCONSUMO,
+            "totale": sum(r["calici"] for r in righe),
+            "per_motivo": [{"motivo": k, "nome": MOTIVI_AUTOCONSUMO.get(k, k), "calici": v} for k, v in per_motivo.items()],
+            "per_utente": sorted(({"utente": k, "calici": v} for k, v in per_utente.items()), key=lambda x: -x["calici"])}
+
+
+@app.delete("/api/autoconsumo/{aid}")
+def annulla_autoconsumo(aid: int, request: Request):
+    """Annulla una registrazione sbagliata: chi l'ha fatta (finché la bottiglia è aperta) o l'admin."""
+    with db() as c:
+        a = c.execute("SELECT * FROM autoconsumo WHERE id=?", (aid,)).fetchone()
+        if not a:
+            raise HTTPException(404, "Registrazione non trovata")
+        b = c.execute("SELECT * FROM bottiglie WHERE id=?", (a["bottiglia_id"],)).fetchone()
+        admin = request.state.utente["ruolo"] == "admin"
+        if not admin and (a["utente"] != chi(request) or not b or b["stato"] == "chiusa"):
+            raise HTTPException(403, "Puoi annullare solo le tue registrazioni su bottiglie ancora aperte")
+        c.execute("DELETE FROM autoconsumo WHERE id=?", (aid,))
+        if b and b["stato"] != "chiusa":
+            c.execute("UPDATE bottiglie SET calici = MAX(0, calici - ?), autoconsumo = MAX(0, autoconsumo - ?) WHERE id=?",
+                      (a["calici"], a["calici"], b["id"]))
+    return {"ok": True}
 
 
 class Finita(BaseModel):
@@ -453,7 +527,8 @@ def pos_calici():
         v = vini.setdefault(b["product_id"], {"vino_product_id": b["product_id"], "nome": b["nome"],
                                               "calici_app": 0, "dal": None, "bottiglie": 0,
                                               "calici_cassa": 0, "calici_aperti": 0})
-        v["calici_app"] += b["calici"]
+        v["calici_app"] += b["calici"] - (b["autoconsumo"] or 0)   # l'autoconsumo non passa dalla cassa
+        v["autoconsumo"] = v.get("autoconsumo", 0) + (b["autoconsumo"] or 0)
         v["bottiglie"] += 1
         dal = b["aperta_ts"] or f"{b['aperta_il']} 00:00:00"
         v["dal"] = min(v["dal"] or dal, dal)
@@ -504,15 +579,27 @@ GIORNI = ["Lun", "Mar", "Mer", "Gio", "Ven", "Sab", "Dom"]
 
 
 @app.get("/api/dashboard")
-def dashboard(settimane: int = 8):
-    """Calici più venduti e frequenza settimanale. Usa le righe della cassa Odoo;
-    se la cassa non è raggiungibile usa i calici segnati nell'app."""
+def dashboard(settimane: int = 8, dal: Optional[str] = None, al: Optional[str] = None):
+    """Calici più venduti e frequenza settimanale nel periodo scelto (dal/al, date incluse,
+    oppure le ultime N settimane). Usa le righe della cassa Odoo; se la cassa non è
+    raggiungibile usa i calici segnati nell'app."""
     from collections import Counter, defaultdict
     from datetime import timedelta
     from zoneinfo import ZoneInfo
     tz = ZoneInfo(os.getenv("MESCITA_TZ", "Europe/Rome"))
-    settimane = max(1, min(settimane, 52))
-    inizio = datetime.now(timezone.utc) - timedelta(weeks=settimane)
+    oggi_ = datetime.now(tz).date()
+    try:
+        d_al = date.fromisoformat(al) if al else oggi_
+        d_dal = date.fromisoformat(dal) if dal else d_al - timedelta(weeks=max(1, min(settimane, 52)))
+    except ValueError:
+        raise HTTPException(400, "Date non valide (formato AAAA-MM-GG)")
+    if d_dal > d_al:
+        d_dal, d_al = d_al, d_dal
+    d_dal = max(d_dal, d_al - timedelta(days=731))          # al massimo due anni
+    inizio = datetime.combine(d_dal, datetime.min.time(), tz).astimezone(timezone.utc)
+    fine = datetime.combine(d_al + timedelta(days=1), datetime.min.time(), tz).astimezone(timezone.utc)
+    giorni_periodo = (d_al - d_dal).days + 1
+    settimane = giorni_periodo / 7
     with db() as c:
         bott = c.execute("SELECT product_id, nome, categoria, aperta_ts, aperta_il FROM bottiglie "
                          "ORDER BY COALESCE(aperta_ts, aperta_il) DESC").fetchall()
@@ -550,15 +637,17 @@ def dashboard(settimane: int = 8):
             calice = nome_calice(r.get("prodotto"))   # es. "Merlot 100ML" (categoria Mescita)
             voce = (produttore or calice or "?", calice if produttore else "",
                     tipo_di(b["categoria"]) if b else "")
-            vendite.append((quando.astimezone(tz), voce, r["qty"]))
+            if quando < fine:
+                vendite.append((quando.astimezone(tz), voce, r["qty"]))
     except Exception:
         fonte = "app"
     if fonte == "app" or not vendite:
         fonte, vendite = "app", []
         with db() as c:
             for r in c.execute("""SELECT v.ts, v.calici, b.nome, b.categoria FROM vendite v
-                                  JOIN bottiglie b ON b.id = v.bottiglia_id WHERE v.ts >= ?""",
-                               (inizio.astimezone(tz).replace(tzinfo=None).isoformat(),)):
+                                  JOIN bottiglie b ON b.id = v.bottiglia_id WHERE v.ts >= ? AND v.ts < ?""",
+                               (inizio.astimezone(tz).replace(tzinfo=None).isoformat(),
+                                fine.astimezone(tz).replace(tzinfo=None).isoformat())):
                 vendite.append((datetime.fromisoformat(r["ts"]).replace(tzinfo=tz),
                                 (r["nome"], "", tipo_di(r["categoria"])), r["calici"]))
     top, giorno, settimana = Counter(), defaultdict(float), Counter()
@@ -567,25 +656,90 @@ def dashboard(settimane: int = 8):
         giorno[quando.weekday()] += q
         lun = (quando - timedelta(days=quando.weekday())).date()
         settimana[lun.isoformat()] += q
-    oggi_ = datetime.now(tz).date()
-    lunedi = oggi_ - timedelta(days=oggi_.weekday())
-    sett = [(lunedi - timedelta(weeks=i)).isoformat() for i in range(settimane, -1, -1)]
+    primo_lun = d_dal - timedelta(days=d_dal.weekday())
+    sett = [(primo_lun + timedelta(weeks=i)).isoformat() for i in range((d_al - primo_lun).days // 7 + 1)]
+    quanti = Counter((d_dal + timedelta(days=i)).weekday() for i in range(giorni_periodo))  # es. quanti lunedì
     with db() as c:
         chiuse = c.execute("""SELECT COUNT(*) n, SUM(faccina='sorridente') ok, AVG(giorni_aperta) gg,
                               SUM(CASE WHEN prezzo > ? THEN 1 ELSE 0 END) care
-                              FROM bottiglie WHERE stato='chiusa' AND chiusa_il >= ?""",
-                           (SOGLIA_PREZZO, (oggi_ - timedelta(weeks=settimane)).isoformat())).fetchone()
+                              FROM bottiglie WHERE stato='chiusa' AND chiusa_il >= ? AND chiusa_il <= ?""",
+                           (SOGLIA_PREZZO, d_dal.isoformat(), d_al.isoformat())).fetchone()
     totale = sum(q for _, _, q in vendite)
     return {
-        "fonte": fonte, "settimane": settimane, "totale": totale,
-        "media_settimana": round(totale / settimane, 1),
+        "fonte": fonte, "dal": d_dal.isoformat(), "al": d_al.isoformat(), "giorni": giorni_periodo,
+        "totale": totale,
+        "media_settimana": round(totale / max(1, settimane), 1),
         "top": [{"nome": n, "vino": v, "tipo": t, "calici": q}
                 for (n, v, t), q in top.most_common(10) if q > 0],
-        "per_giorno": [{"giorno": GIORNI[i], "media": round(giorno[i] / settimane, 1)} for i in range(7)],
+        "per_giorno": [{"giorno": GIORNI[i], "media": round(giorno[i] / max(1, quanti[i]), 1)} for i in range(7)],
         "per_settimana": [{"settimana": d, "calici": settimana.get(d, 0)} for d in sett],
         "bottiglie": {"chiuse": chiuse["n"] or 0, "sorridenti": chiuse["ok"] or 0,
                       "giorni_medi": round(chiuse["gg"] or 0, 1), "costose": chiuse["care"] or 0},
     }
+
+
+# ---------------------------------------------------------------- ordini consigliati
+@app.get("/api/ordini")
+def ordini_consigliati(request: Request, settimane: int = 8, copertura: int = 2, top: int = 10,
+                       minimo: int = 3, cassa: int = 6):
+    """Suggerisce cosa ordinare. Regole:
+    - scorta minima: non scendere mai sotto `minimo` bottiglie (3);
+    - livello da raggiungere = minimo + consumo previsto per `copertura` settimane;
+    - i `top` vini più venduti si ordinano a casse intere da `cassa` bottiglie (6),
+      gli altri a bottiglie singole."""
+    solo_admin(request)
+    import math
+    from datetime import timedelta
+    settimane, copertura = max(1, min(settimane, 52)), max(0, min(copertura, 12))
+    minimo, cassa, top = max(0, minimo), max(1, cassa), max(0, top)
+    dal = datetime.now(timezone.utc) - timedelta(weeks=settimane)
+    vini = odoo.catalogo_vini()
+    ids = [v["id"] for v in vini]
+    try:
+        uscite, fonte = odoo.uscite_vini(ids, dal.strftime("%Y-%m-%d %H:%M:%S")), "magazzino"
+    except Exception:
+        with db() as c:
+            uscite = {r["product_id"]: r["n"] for r in c.execute(
+                "SELECT product_id, COUNT(*) n FROM bottiglie WHERE stato='chiusa' AND chiusa_il >= ? GROUP BY product_id",
+                (dal.date().isoformat(),))}
+        fonte = "app"
+    with db() as c:
+        aperte = {r["product_id"]: r["n"] for r in c.execute(
+            "SELECT product_id, COUNT(*) n FROM bottiglie WHERE stato != 'chiusa' GROUP BY product_id")}
+    for v in vini:
+        v["uscite"] = round(uscite.get(v["id"], 0), 1)
+        v["a_settimana"] = round(v["uscite"] / settimane, 2)
+    classifica = sorted((v for v in vini if v["uscite"] > 0), key=lambda v: -v["uscite"])
+    piu_venduti = {v["id"] for v in classifica[:top]}
+    righe = []
+    for v in vini:
+        qty = max(0, int(v["qty"] or 0))
+        if not qty and not v["uscite"]:
+            continue                                   # mai venduto e finito: probabilmente fuori listino
+        livello = minimo + math.ceil(v["a_settimana"] * copertura)
+        manca = max(0, livello - qty)
+        tipo = "cassa" if v["id"] in piu_venduti else "bottiglie"
+        ordina = math.ceil(manca / cassa) * cassa if (manca and tipo == "cassa") else manca
+        if qty < minimo:
+            motivo = f"sotto la scorta minima di {minimo}"
+        elif manca:
+            motivo = f"finisce in meno di {copertura} settimane"
+        else:
+            motivo = ""
+        righe.append({"id": v["id"], "nome": v["name"], "giacenza": qty, "aperte": aperte.get(v["id"], 0),
+                      "uscite": v["uscite"], "a_settimana": v["a_settimana"],
+                      "settimane_scorta": round(qty / v["a_settimana"], 1) if v["a_settimana"] else None,
+                      "piu_venduto": v["id"] in piu_venduti, "livello": livello,
+                      "ordina": ordina, "casse": ordina // cassa if tipo == "cassa" else 0,
+                      "prezzo": v.get("prezzo"), "costo": round(ordina * (v.get("prezzo") or 0), 2),
+                      "motivo": motivo})
+    righe.sort(key=lambda r: (-r["ordina"] if r["ordina"] else 1, -r["uscite"], r["nome"]))
+    da_ordinare = [r for r in righe if r["ordina"]]
+    return {"fonte": fonte, "settimane": settimane, "copertura": copertura, "top": top,
+            "minimo": minimo, "cassa": cassa, "righe": righe,
+            "totale_bottiglie": sum(r["ordina"] for r in da_ordinare),
+            "totale_costo": round(sum(r["costo"] for r in da_ordinare), 2),
+            "vini_da_ordinare": len(da_ordinare)}
 
 
 app.mount("/static", StaticFiles(directory=os.path.join(os.path.dirname(__file__), "static")), name="static")

@@ -65,3 +65,20 @@ L'app legge le righe d'ordine del POS di Odoo, anche dei conti non ancora pagati
 Ogni riga POS di un calice (prodotti della categoria `ODOO_CALICE_CATEGORY`, es. "Mescita") viene assegnata alla bottiglia aperta tramite l'attributo **Produttore** del calice (vale anche per "Produttore Classico" e "Produttore Charmat"): l'app cerca la bottiglia aperta il cui nome contiene il nome del produttore. Se non ne trova nessuna o ne trova più di una, il calice compare in "Calici da abbinare", dove si può scegliere la bottiglia a mano; l'abbinamento viene ricordato.
 
 Un ordine compare appena la cassa lo sincronizza con Odoo: in modalità ristorante succede a ogni invio in cucina, cambio tavolo o pagamento. L'utente Odoo della web app deve poter leggere il Punto Vendita.
+
+## Ordini consigliati (solo admin)
+
+La scheda **Ordini** suggerisce cosa ordinare. Le vendite arrivano dai movimenti di magazzino Odoo: bottiglie vendute e bottiglie finite al calice. Le regole sono:
+
+- il livello da raggiungere è la scorta minima (3 bottiglie) più il consumo previsto per le settimane di copertura (2);
+- i vini più venduti (i primi 10) si ordinano a casse intere da 6, gli altri a bottiglie singole.
+
+Tutti i parametri si cambiano dalla scheda. La lista si copia o si stampa.
+
+## Autoconsumo
+
+Il pulsante 🎁 sulla scheda di una bottiglia registra i calici che non passano dalla cassa: bevuti dal personale, offerti, assaggi, rotti o versati. Questi calici contano per arrivare ai 7 della bottiglia ma non come venduti. Il riepilogo per motivo e per persona è in **Storico → Autoconsumo**.
+
+## Guida per lo staff
+
+`/static/guida.html` si apre dal pulsante **?** nell'app.
