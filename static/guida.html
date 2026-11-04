@@ -48,7 +48,7 @@ summary{cursor:pointer;font-weight:600}
   <h1>Come si usa la mescita</h1>
   <p class="lead">Ogni bottiglia aperta per il vino al calice si registra qui. Da una bottiglia escono <b>7 calici</b>: l'app conta quelli battuti in cassa, ti avvisa quando una bottiglia sta aperta troppo a lungo e, quando la dichiari finita, la toglie dal magazzino Odoo.</p>
   <nav class="toc">
-    <a href="#accesso">Accesso</a><a href="#apri">Aprire</a><a href="#servi">Servire</a><a href="#cassa">Cassa</a><a href="#finita">Bottiglia finita</a><a href="#colori">Durata</a><a href="#storico">Storico</a><a href="#faq">Domande</a>
+    <a href="#accesso">Accesso</a><a href="#apri">Aprire</a><a href="#servi">Servire</a><a href="#cassa">Cassa</a><a href="#autoconsumo">Autoconsumo</a><a href="#finita">Bottiglia finita</a><a href="#colori">Durata</a><a href="#storico">Storico</a><a href="#faq">Domande</a>
   </nav>
 
   <section id="accesso">
@@ -77,7 +77,8 @@ summary{cursor:pointer;font-weight:600}
     <p>Ogni calice va <b>battuto in cassa</b> come sempre: scegli il calice nella categoria <b>Mescita</b> e poi il <b>Produttore</b> giusto (Produttore Classico per i fermi, Produttore Charmat per le bollicine). È il produttore che dice all'app da quale bottiglia è uscito il calice.</p>
     <ul>
       <li>Sulla scheda di ogni bottiglia la riga <b>Cassa</b> mostra quanti calici di quel vino sono stati battuti, anche sui conti ancora aperti.</li>
-      <li>Con <span class="k a">+ Calice</span> puoi segnare un calice anche nell'app, e con <span class="k">−</span> lo togli se hai sbagliato. Va fatto per i calici che non passano dalla cassa, come gli assaggi.</li>
+      <li>Con <span class="k a">+ Calice</span> puoi segnare un calice anche nell'app, e con <span class="k">−</span> lo togli se hai sbagliato.</li>
+      <li>I calici che <b>non passano dalla cassa</b> (bevuti da noi, offerti, assaggi, versati) si segnano con il pulsante <span class="k">🎁</span>: vedi <a href="#autoconsumo">Autoconsumo</a>.</li>
       <li>I bicchierini sulla scheda si riempiono a ogni calice: quando sono 7 su 7, la bottiglia dovrebbe essere vuota.</li>
     </ul>
     <div class="tip"><b>Scegli sempre il produttore</b>Se in cassa batti un calice senza produttore, o con un produttore che non ha bottiglie aperte, l'app non sa a chi assegnarlo e lo mette tra i "Calici da abbinare".</div>
@@ -87,6 +88,18 @@ summary{cursor:pointer;font-weight:600}
     <h2><span class="n">4</span>Scheda Cassa</h2>
     <p>Qui vedi gli ordini con i calici battuti: tavolo, stato del conto (<span class="pill warn">Conto aperto</span> o <span class="pill ok">Pagato</span>) e la bottiglia a cui è andato ogni calice. Si aggiorna da sola ogni 30 secondi. Un ordine compare appena la cassa lo invia a Odoo, cioè quando mandi la comanda, cambi tavolo o incassi.</p>
     <p><b>Calici da abbinare</b>: se il numerino rosso sulla scheda Cassa è acceso, ci sono calici che l'app non ha saputo assegnare. Per ognuno scegli la bottiglia giusta dal menu e premi <span class="k">Abbina</span>. L'app se lo ricorda per le volte successive.</p>
+  </section>
+
+  <section id="autoconsumo">
+    <h2><span class="n">🎁</span>Autoconsumo</h2>
+    <p>Serve per i calici che escono dalla bottiglia ma <b>non si possono battere su un ordine</b>.</p>
+    <ol>
+      <li>Sulla scheda della bottiglia premi <span class="k">🎁</span>.</li>
+      <li>Scegli il motivo: <b>🍷 Bevuto dal personale</b>, <b>🎁 Offerto al cliente</b>, <b>👅 Assaggio</b> o <b>💧 Rotto o versato</b>.</li>
+      <li>Imposta quanti calici con <span class="k">−</span> e <span class="k">+</span>, aggiungi una nota se serve (es. "tavolo 4, cliente abituale") e premi <span class="k a">Registra</span>.</li>
+    </ol>
+    <p>Questi calici contano per arrivare ai 7 della bottiglia, ma non come venduti. Li trovi in <b>Storico → Autoconsumo</b>, con il totale per motivo e per persona. Se hai sbagliato, lì puoi annullare la tua registrazione finché la bottiglia è aperta.</p>
+    <div class="tip"><b>Sii onesto</b>Un calice offerto segnato è un calice giustificato. Un calice non segnato fa scattare l'avviso "troppo vino" a fine bottiglia.</div>
   </section>
 
   <section id="finita">

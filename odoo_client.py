@@ -103,6 +103,37 @@ class OdooClient:
             v["prezzo"] = prezzi.get(pid)
         return sorted(tot.values(), key=lambda v: v["name"])
 
+    def catalogo_vini(self):
+        """Tutti i vini attivi delle categorie scelte, anche con giacenza zero.
+        Ritorna [{id, name, qty, prezzo}]."""
+        if self.demo:
+            return [{"id": v["id"], "name": v["name"], "qty": v["qty"], "prezzo": v["prezzo"]}
+                    for v in self._demo_stock.values()]
+        campo = os.getenv("ODOO_CAMPO_PREZZO", "standard_price")
+        dom = [("type", "in", ["product", "consu"])] + self._filtro_categorie(self.categ_name)
+        ctx = {"location": self.location_id} if self.location_id else {}
+        prodotti = self._call("product.product", "search_read", dom,
+                              fields=["display_name", "qty_available", campo], context=ctx)
+        return sorted(({"id": p["id"], "name": p["display_name"], "qty": p["qty_available"],
+                        "prezzo": p.get(campo)} for p in prodotti), key=lambda v: v["name"])
+
+    def uscite_vini(self, product_ids, dal_utc: str):
+        """Bottiglie uscite dal magazzino da dal_utc: vendute (POS/fatture) o scaricate
+        (bottiglie finite al calice). Ritorna {product_id: bottiglie}."""
+        if self.demo:
+            return {1: 9, 2: 5, 4: 7, 5: 2, 3: 1}
+        if not product_ids:
+            return {}
+        dom = [("product_id", "in", list(product_ids)), ("state", "=", "done"), ("date", ">=", dal_utc),
+               ("location_id.usage", "=", "internal"),
+               ("location_dest_id.usage", "in", ["customer", "inventory"])]
+        if self.location_id:
+            dom.append(("location_id", "child_of", self.location_id))
+        out = {}
+        for m in self._call("stock.move", "search_read", dom, fields=["product_id", "product_uom_qty"]):
+            out[m["product_id"][0]] = out.get(m["product_id"][0], 0) + m["product_uom_qty"]
+        return out
+
     def prezzi(self, product_ids):
         """{product_id: costo} dal campo costo del prodotto (standard_price) in Odoo."""
         if self.demo:
