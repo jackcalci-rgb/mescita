@@ -678,6 +678,35 @@ def dashboard(settimane: int = 8, dal: Optional[str] = None, al: Optional[str] =
     }
 
 
+# ---------------------------------------------------------------- inventario
+@app.get("/api/inventario")
+def inventario(request: Request):
+    """Inventario vini da Odoo in tempo reale. Le bottiglie aperte in mescita sono ancora
+    in giacenza su Odoo (si scaricano quando sono finite), quindi qui vengono tolte:
+    disponibili = giacenza Odoo - aperte in mescita."""
+    solo_admin(request)
+    vini = odoo.inventario_vini()
+    with db() as c:
+        aperte = {r["product_id"]: r["n"] for r in c.execute(
+            "SELECT product_id, COUNT(*) n FROM bottiglie WHERE stato != 'chiusa' GROUP BY product_id")}
+    righe = []
+    for v in vini:
+        giacenza = v["qty"] or 0
+        in_mescita = aperte.get(v["id"], 0)
+        disp = max(0, giacenza - in_mescita)
+        if not giacenza and not in_mescita:
+            continue
+        righe.append({"id": v["id"], "nome": v["name"], "categoria": v["categoria"] or "Senza categoria",
+                      "giacenza_odoo": giacenza, "in_mescita": in_mescita, "disponibili": disp,
+                      "prezzo": v.get("prezzo"), "valore": round(disp * (v.get("prezzo") or 0), 2)})
+    return {"aggiornato": datetime.now().isoformat(timespec="seconds"), "righe": righe,
+            "bottiglie": sum(r["disponibili"] for r in righe),
+            "in_mescita": sum(r["in_mescita"] for r in righe),
+            "valore": round(sum(r["valore"] for r in righe), 2),
+            "vini": sum(1 for r in righe if r["disponibili"] > 0),
+            "esauriti": sum(1 for r in righe if r["disponibili"] == 0)}
+
+
 # ---------------------------------------------------------------- ordini consigliati
 @app.get("/api/ordini")
 def ordini_consigliati(request: Request, settimane: int = 8, copertura: int = 2, top: int = 10,

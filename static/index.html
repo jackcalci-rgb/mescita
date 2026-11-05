@@ -99,6 +99,17 @@ h3{font-size:13px;margin:22px 0 10px;color:var(--muted);text-transform:uppercase
 .order-lines div{display:flex;gap:8px;align-items:center;flex-wrap:wrap;font-size:14px}
 .qty{background:var(--ink);color:#fff;border-radius:8px;font-size:12px;font-weight:700;padding:2px 7px}
 
+/* inventario */
+.inv-filtri{display:flex;flex-wrap:wrap;gap:10px;align-items:center;margin:4px 0 12px}
+table.inv{width:100%;border-collapse:collapse;font-size:14px}
+table.inv th{text-align:left;font-size:12px;text-transform:uppercase;letter-spacing:.04em;color:var(--muted);font-weight:600;padding:12px 14px;border-bottom:1px solid var(--line);cursor:pointer;user-select:none;white-space:nowrap;background:var(--card);position:sticky;top:0}
+table.inv th.on{color:var(--ink)}table.inv th.on::after{content:" ↕";opacity:.5}
+table.inv td{padding:10px 14px;border-bottom:1px solid var(--line);vertical-align:middle}
+table.inv .n{text-align:right;white-space:nowrap}
+table.inv tr.grp td{background:var(--soft);font-weight:700;font-size:13px;padding:8px 14px}
+table.inv tr.low td:first-child{box-shadow:inset 3px 0 var(--warn)}table.inv tr.zero{opacity:.55}
+table.inv .pill svg.i{width:13px;height:13px}
+@media (max-width:640px){table.inv .hide-m{display:none}table.inv td,table.inv th{padding:9px 10px}table.inv .pill{display:none}}
 /* ordini */
 .ord-param{display:flex;flex-wrap:wrap;gap:10px 18px;align-items:center;font-size:14px;color:var(--muted);margin-bottom:6px}
 .ord-param label{display:flex;align-items:center;gap:6px}.ord-param select{width:auto;padding:7px 10px}
@@ -178,7 +189,8 @@ dialog::backdrop{background:rgba(27,25,24,.45);backdrop-filter:blur(2px)}
     <button data-tab="storico"><svg class="i"><use href="#i-history"/></svg>Storico</button>
     <button data-tab="dashboard" class="solo-admin" hidden><svg class="i"><use href="#i-chart"/></svg>Dashboard</button>
     <button data-tab="ordini" class="solo-admin" hidden><svg class="i"><use href="#i-cart"/></svg>Ordini</button>
-    <button data-tab="gestione" class="solo-admin" hidden><svg class="i"><use href="#i-users"/></svg>Dipendenti</button>
+    <button data-tab="inventario" class="solo-admin" hidden><svg class="i"><use href="#i-boxes"/></svg>Inventario</button>
+    <button data-tab="gestione" class="solo-admin" hidden><svg class="i"><use href="#i-users"/></svg>Staff</button>
   </nav>
 </header>
 
@@ -257,6 +269,26 @@ dialog::backdrop{background:rgba(27,25,24,.45);backdrop-filter:blur(2px)}
     <div class="list" id="oRighe"></div>
   </section>
 
+  <section class="tab" id="tab-inventario" hidden>
+    <div class="row" style="justify-content:space-between">
+      <h2>Inventario vini</h2>
+      <div class="row" style="gap:8px"><span class="muted small" id="invOra"></span>
+        <button class="btn-ghost btn-sm" onclick="caricaInv()"><svg class="i"><use href="#i-refresh"/></svg>Aggiorna</button></div>
+    </div>
+    <p class="muted small" style="margin-top:6px">Giacenze lette da Odoo in tempo reale (si aggiorna da solo ogni minuto). Le bottiglie aperte in mescita sono escluse dalle disponibili.</p>
+    <div class="stats" id="invKpi"></div>
+    <div class="inv-filtri">
+      <div style="position:relative;flex:1;min-width:200px"><span style="position:absolute;left:12px;top:11px;color:var(--muted)"><svg class="i"><use href="#i-search"/></svg></span>
+        <input id="invCerca" placeholder="Cerca vino o produttore" style="padding-left:40px" oninput="disegnaInv()"></div>
+      <select id="invCat" onchange="disegnaInv()" style="width:auto"></select>
+      <label class="small muted" style="display:flex;gap:6px;align-items:center"><input type="checkbox" id="invEsauriti" onchange="disegnaInv()" style="width:auto"> mostra esauriti</label>
+    </div>
+    <div class="card" style="padding:0;overflow:hidden"><table class="inv"><thead><tr>
+      <th data-k="nome">Vino</th><th data-k="disponibili" class="n">Disponibili</th><th data-k="in_mescita" class="n">In mescita</th>
+      <th data-k="giacenza_odoo" class="n hide-m">Odoo</th><th data-k="prezzo" class="n hide-m">Costo</th><th data-k="valore" class="n hide-m">Valore</th>
+    </tr></thead><tbody id="invBody"></tbody></table></div>
+  </section>
+
   <section class="tab" id="tab-gestione" hidden>
     <h2>Dipendenti</h2>
     <div class="card" style="margin-bottom:14px">
@@ -301,6 +333,7 @@ dialog::backdrop{background:rgba(27,25,24,.45);backdrop-filter:blur(2px)}
   <symbol id="i-copy" viewBox="0 0 24 24"><rect x="9" y="9" width="12" height="12" rx="2"/><path d="M5 15H4a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1h10a1 1 0 0 1 1 1v1"/></symbol>
   <symbol id="i-print" viewBox="0 0 24 24"><path d="M6 9V3h12v6M6 18H4a1 1 0 0 1-1-1v-6a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2v6a1 1 0 0 1-1 1h-2M6 14h12v7H6z"/></symbol>
   <symbol id="i-gift" viewBox="0 0 24 24"><rect x="3" y="8" width="18" height="4" rx="1"/><path d="M12 8v13M19 12v8a1 1 0 0 1-1 1H6a1 1 0 0 1-1-1v-8M7.5 8a2.5 2.5 0 0 1 0-5C10 3 12 8 12 8s2-5 4.5-5a2.5 2.5 0 0 1 0 5"/></symbol>
+  <symbol id="i-boxes" viewBox="0 0 24 24"><path d="M3 9h18v12H3zM3 9l2-5h14l2 5M10 13h4"/></symbol>
   <symbol id="i-x" viewBox="0 0 24 24"><path d="M18 6 6 18M6 6l12 12"/></symbol>
 </svg>
 
@@ -332,6 +365,8 @@ function vai(tab){
   document.querySelectorAll('.tab').forEach(s => s.hidden = s.id !== 'tab-' + tab);
   if (tab === 'dashboard') caricaDash();
   if (tab === 'ordini') caricaOrdini();
+  clearInterval(TIMER_INV);
+  if (tab === 'inventario') { caricaInv(); TIMER_INV = setInterval(() => { if (!document.hidden) caricaInv(); }, 60000); }
   try { localStorage.setItem('tab', tab); } catch (e) {}
 }
 document.querySelectorAll('nav button').forEach(b => b.onclick = () => vai(b.dataset.tab));
@@ -346,7 +381,7 @@ async function init(){
   if (admin) caricaUtenti();
   if (INFO.demo) $('demo').innerHTML = '<span class="demo">DEMO</span>';
   let t = 'bottiglie'; try { t = localStorage.getItem('tab') || t; } catch (e) {}
-  if (!admin && (t === 'gestione' || t === 'dashboard' || t === 'ordini')) t = 'bottiglie';
+  if (!admin && (t === 'gestione' || t === 'dashboard' || t === 'ordini' || t === 'inventario')) t = 'bottiglie';
   await carica(); vai(t); caricaAbb();
 }
 async function carica(){
@@ -625,6 +660,46 @@ async function caricaDash(){
   const maxS = Math.max(1, ...d.per_settimana.map(s => s.calici));
   $('settimane').innerHTML = d.per_settimana.map((s, i) => `<div class="col"><div class="b ${i === d.per_settimana.length - 1 ? 'hi' : ''}" style="height:${85 * s.calici / maxS}%"><span>${s.calici}</span></div><small>${data(s.settimana)}</small></div>`).join('');
 }
+
+// ---------------- inventario in tempo reale
+let INV = null, TIMER_INV = null, INV_SORT = {k:'nome', dir:1};
+const num = n => Number(n).toLocaleString('it-IT', {maximumFractionDigits:1});
+async function caricaInv(){
+  try { INV = await api('/api/inventario'); } catch (e) { return; }
+  $('invOra').textContent = 'aggiornato alle ' + INV.aggiornato.slice(11, 16);
+  $('invKpi').innerHTML = `
+    <div class="stat"><div class="ico">${ic('bottle')}</div><div><b>${num(INV.bottiglie)}</b><small>bottiglie disponibili</small></div></div>
+    <div class="stat"><div class="ico">${ic('boxes')}</div><div><b>${INV.vini}</b><small>vini in cantina${INV.esauriti ? ' · ' + INV.esauriti + ' esauriti' : ''}</small></div></div>
+    <div class="stat"><div class="ico">${ic('glass')}</div><div><b>${INV.in_mescita}</b><small>aperte in mescita (escluse)</small></div></div>
+    <div class="stat"><div class="ico">${ic('euro')}</div><div><b>${euro(INV.valore)}</b><small>valore a costo</small></div></div>`;
+  const cats = [...new Set(INV.righe.map(r => r.categoria))].sort(), sel = $('invCat').value;
+  $('invCat').innerHTML = '<option value="">Tutte le categorie</option>' + cats.map(c => `<option ${c === sel ? 'selected' : ''}>${esc(c)}</option>`).join('');
+  disegnaInv();
+}
+function disegnaInv(){
+  if (!INV) return;
+  const q = $('invCerca').value.trim().toLowerCase(), cat = $('invCat').value, esa = $('invEsauriti').checked;
+  const {k, dir} = INV_SORT;
+  const righe = INV.righe.filter(r => (!q || r.nome.toLowerCase().includes(q)) && (!cat || r.categoria === cat) && (esa || r.disponibili > 0))
+    .sort((a, b) => (typeof a[k] === 'string' ? a[k].localeCompare(b[k]) : (a[k] || 0) - (b[k] || 0)) * dir);
+  const gruppi = {};
+  righe.forEach(r => (gruppi[r.categoria] = gruppi[r.categoria] || []).push(r));
+  document.querySelectorAll('table.inv th').forEach(th => th.classList.toggle('on', th.dataset.k === k));
+  $('invBody').innerHTML = Object.keys(gruppi).sort().map(g => {
+    const rr = gruppi[g], tot = rr.reduce((s, r) => s + r.disponibili, 0), val = rr.reduce((s, r) => s + r.valore, 0);
+    return `<tr class="grp"><td>${esc(g)}</td><td class="n">${num(tot)}</td><td class="n">${rr.reduce((s, r) => s + r.in_mescita, 0) || ''}</td><td class="hide-m"></td><td class="hide-m"></td><td class="n hide-m">${euro(val)}</td></tr>`
+      + rr.map(r => `<tr class="${r.disponibili === 0 ? 'zero' : r.disponibili < 3 ? 'low' : ''}">
+          <td>${esc(r.nome)}</td>
+          <td class="n"><b>${num(r.disponibili)}</b>${r.disponibili > 0 && r.disponibili < 3 ? ' <span class="pill p-warn">scorta bassa</span>' : r.disponibili === 0 ? ' <span class="pill p-bad">esaurito</span>' : ''}</td>
+          <td class="n">${r.in_mescita ? `<span class="pill p-neutral">${ic('glass')}${r.in_mescita}</span>` : ''}</td>
+          <td class="n hide-m muted">${num(r.giacenza_odoo)}</td>
+          <td class="n hide-m muted">${r.prezzo ? euro(r.prezzo) : ''}</td>
+          <td class="n hide-m">${r.valore ? euro(r.valore) : ''}</td></tr>`).join('');
+  }).join('') || `<tr><td colspan="6" class="muted" style="text-align:center;padding:24px">Nessun vino trovato.</td></tr>`;
+}
+document.querySelectorAll('table.inv th').forEach(th => th.onclick = () => {
+  INV_SORT = {k: th.dataset.k, dir: INV_SORT.k === th.dataset.k ? -INV_SORT.dir : (th.dataset.k === 'nome' ? 1 : -1)}; disegnaInv();
+});
 
 // ---------------- ordini consigliati
 let ORD = null;

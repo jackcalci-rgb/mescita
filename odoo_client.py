@@ -117,6 +117,40 @@ class OdooClient:
         return sorted(({"id": p["id"], "name": p["display_name"], "qty": p["qty_available"],
                         "prezzo": p.get(campo)} for p in prodotti), key=lambda v: v["name"])
 
+    def inventario_vini(self):
+        """Inventario completo dei vini con giacenza, categoria (POS o prodotto) e costo.
+        Ritorna [{id, name, qty, prezzo, categoria}]."""
+        if self.demo:
+            nomi = {"spumante": "Bollicine", "bianco_leggero": "Vini Bianchi", "bianco_corposo": "Vini Bianchi",
+                    "rosso_leggero": "Vini Rossi", "rosso_corposo": "Vini Rossi", "dolce": "Vini Dolci"}
+            return [{"id": v["id"], "name": v["name"], "qty": v["qty"], "prezzo": v["prezzo"],
+                     "categoria": nomi.get(v["categ"], "")} for v in self._demo_stock.values()]
+        campo = os.getenv("ODOO_CAMPO_PREZZO", "standard_price")
+        pos = self._campo_pos_categ()
+        campi = ["display_name", "qty_available", campo, "categ_id"] + ([pos] if pos else [])
+        dom = [("type", "in", ["product", "consu"])] + self._filtro_categorie(self.categ_name)
+        ctx = {"location": self.location_id} if self.location_id else {}
+        prodotti = self._call("product.product", "search_read", dom, fields=campi, context=ctx)
+        # nomi delle categorie POS (many2many in Odoo 17+, many2one prima)
+        ids_pos = {i for p in prodotti for i in (p.get(pos) or []) if isinstance(i, int)} if pos == "pos_categ_ids" else set()
+        nomi_pos = {c["id"]: c["name"] for c in self._call("pos.category", "read", list(ids_pos), fields=["name"])} if ids_pos else {}
+        filtro = [n.strip().lower() for n in (self.categ_name or "").split(",") if n.strip()]
+
+        def categoria(p):
+            if pos == "pos_categ_ids":
+                nomi = [nomi_pos.get(i, "") for i in (p.get(pos) or [])]
+            elif pos and p.get(pos):
+                nomi = [p[pos][1]]
+            else:
+                nomi = []
+            # preferisci la categoria POS che corrisponde al filtro (es. "Vini Rossi")
+            scelta = next((n for n in nomi if any(f in n.lower() for f in filtro)), nomi[0] if nomi else "")
+            return scelta or (p["categ_id"][1] if p.get("categ_id") else "")
+
+        return sorted(({"id": p["id"], "name": p["display_name"], "qty": p["qty_available"],
+                        "prezzo": p.get(campo), "categoria": categoria(p)} for p in prodotti),
+                      key=lambda v: (v["categoria"], v["name"]))
+
     def uscite_vini(self, product_ids, dal_utc: str):
         """Bottiglie uscite dal magazzino da dal_utc: vendute (POS/fatture) o scaricate
         (bottiglie finite al calice). Ritorna {product_id: bottiglie}."""
