@@ -1,4 +1,5 @@
 """Mescita a calice: controllo bottiglie aperte vs calici venduti, collegato a Odoo."""
+import hmac
 import os
 import re
 import sqlite3
@@ -78,7 +79,7 @@ with db() as c:
 
 
 # ---------------------------------------------------------------- accesso
-PUBBLICI = ("/login", "/api/login", "/static/")
+PUBBLICI = ("/login", "/api/login", "/static/", "/api/sito/")  # /api/sito/ non usa il login: ha il suo token
 SOGLIA_PREZZO = float(os.getenv("MESCITA_SOGLIA_PREZZO", "45"))
 
 
@@ -235,6 +236,16 @@ def serializza(b):
 def info():
     return {"demo": odoo.demo, "calici_per_bottiglia": CALICI_PER_BOTTIGLIA, "motivi_autoconsumo": MOTIVI_AUTOCONSUMO, "soglia_prezzo": SOGLIA_PREZZO,
             "categorie": CATEGORIE, "oggi": oggi()}
+
+
+@app.get("/api/sito/vini")
+def sito_vini(request: Request):
+    """Disponibilita' dei vini per il sito osteriadvor.com (solo lettura, con token).
+    Ritorna tutti i vini attivi delle categorie scelte con la quantita' a disposizione: il sito nasconde quelli a zero."""
+    tok = os.getenv("MESCITA_SITE_TOKEN", "")
+    if not tok or not hmac.compare_digest(request.headers.get("x-site-token", ""), tok):
+        raise HTTPException(403, "Token non valido")
+    return {"vini": [{"name": v["name"], "qty": v["qty"]} for v in odoo.catalogo_vini()]}
 
 
 @app.get("/api/stock")

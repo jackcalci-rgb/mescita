@@ -82,3 +82,7 @@ Il pulsante 🎁 sulla scheda di una bottiglia registra i calici che non passano
 ## Guida per lo staff
 
 `/static/guida.html` si apre dal pulsante **?** nell'app.
+
+## Carta vini del sito (disponibilità)
+
+`GET /api/sito/vini` (senza login, con l'intestazione `X-Site-Token` uguale a `MESCITA_SITE_TOKEN` del `.env`) ritorna `{"vini": [{"name", "qty"}]}`: tutti i vini attivi delle categorie `ODOO_WINE_CATEGORY` con la quantità a disposizione. Il sito (`vini-stock.php`) la legge, tiene una copia per 10 minuti e nasconde dalla carta i vini con quantità zero. Senza `MESCITA_SITE_TOKEN` l'accesso è chiuso. Dopo aver cambiato il `.env`: `sudo systemctl restart mescita`.
