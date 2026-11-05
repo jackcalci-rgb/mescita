@@ -82,3 +82,13 @@ Il pulsante 🎁 sulla scheda di una bottiglia registra i calici che non passano
 ## Guida per lo staff
 
 `/static/guida.html` si apre dal pulsante **?** nell'app.
+
+## Inventario (solo admin)
+
+La scheda **Inventario** mostra tutti i vini con la giacenza letta da Odoo in tempo reale. Si aggiorna da sola ogni minuto. Le bottiglie aperte in mescita sono ancora in giacenza su Odoo, perché si scaricano quando sono finite, quindi vengono tolte dalle disponibili:
+
+```
+disponibili = giacenza Odoo − aperte in mescita
+```
+
+I vini sono raggruppati per categoria POS (Vini Bianchi, Vini Rossi, Bollicine…) con i totali per gruppo. La tabella ha la ricerca e il filtro per categoria, si ordina cliccando sulle colonne e mostra il valore a costo. I vini sotto le 3 bottiglie sono segnati in giallo.
