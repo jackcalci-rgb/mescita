@@ -1,4 +1,5 @@
 """Mescita a calice: controllo bottiglie aperte vs calici venduti, collegato a Odoo."""
+import logging
 import os
 import re
 import sqlite3
@@ -18,6 +19,7 @@ from odoo_client import OdooClient
 DB_PATH = os.getenv("MESCITA_DB", os.path.join(os.path.dirname(__file__), "mescita.db"))
 odoo = OdooClient()
 app = FastAPI(title="Mescita")
+logging.basicConfig(level=logging.INFO, format="%(levelname)s %(name)s: %(message)s")
 
 SCHEMA = """
 CREATE TABLE IF NOT EXISTS sessioni (
@@ -237,14 +239,71 @@ def info():
             "categorie": CATEGORIE, "oggi": oggi()}
 
 
+_CAT_POS = {"t": 0, "map": {}}
+
+
+def categorie_pos():
+    """{product_id: categoria POS} letta da Odoo, tenuta in memoria 10 minuti."""
+    import time
+    if time.time() - _CAT_POS["t"] > 600:
+        try:
+            _CAT_POS["map"] = {v["id"]: v.get("categoria") or "" for v in odoo.inventario_vini()}
+            _CAT_POS["t"] = time.time()
+        except Exception:
+            pass
+    return _CAT_POS["map"]
+
+
+def indovina_categoria(nome, cat_pos=""):
+    """Categoria di durata proposta dal nome del vino e dalla categoria POS (si può cambiare)."""
+    n, c = norm(nome), norm(cat_pos)
+    def ha(*parole):
+        return any(p in n for p in parole)
+    if ha("passito", "moscato", "picolit", "verduzzo", "recioto", "vendemmia tardiva", "sauternes",
+          "porto", "marsala", "dolce", "late harvest", "ice wine", "tokaji", "ramandolo"):
+        return "dolce"
+    if "bollicin" in c or ha("spumante", "prosecco", "franciacorta", "champagne", "brut", "cremant",
+                              "charmat", "metodo classico", "trento doc", "cava", "sekt", "pas dose", "frizzante"):
+        return "spumante"
+    if "ross" in c or ha("rosso", "merlot", "cabernet", "refosco", "schioppettino", "pignolo", "teran",
+                          "nebbiolo", "barolo", "barbaresco", "sangiovese", "chianti", "brunello", "amarone",
+                          "lagrein", "syrah", "primitivo", "aglianico", "montepulciano", "nero d avola"):
+        if ha("pinot nero", "pinot noir", "blauburgunder", "schiava", "bardolino", "grignolino",
+              "dolcetto", "gamay", "beaujolais", "frappato", "pelaverga"):
+            return "rosso_leggero"
+        return "rosso_corposo"
+    if ha("barrique", "legno", "riserva", "orange", "macerat", "anfora", "skin"):
+        return "bianco_corposo"
+    return "bianco_leggero"
+
+
 @app.get("/api/stock")
 def stock():
     vini = odoo.vini_in_stock()
     with db() as c:
         mapp = {r["product_id"]: r["categoria"] for r in c.execute("SELECT * FROM categoria_prodotto")}
+    pos = categorie_pos() if any(v["id"] not in mapp and not v.get("categ") for v in vini) else {}
     for v in vini:
-        v["categoria"] = mapp.get(v["id"]) or v.get("categ")
+        v["categoria"] = mapp.get(v["id"]) or v.get("categ") or indovina_categoria(v["name"], pos.get(v["id"], ""))
     return vini
+
+
+class CambiaCategoria(BaseModel):
+    categoria: str
+
+
+@app.post("/api/bottiglie/{bid}/categoria")
+def cambia_categoria(bid: int, cc: CambiaCategoria):
+    """Corregge la categoria (e quindi la durata) di una bottiglia aperta; vale anche per le prossime."""
+    if cc.categoria not in CATEGORIE:
+        raise HTTPException(400, "Categoria non valida")
+    with db() as c:
+        b = c.execute("SELECT * FROM bottiglie WHERE id=?", (bid,)).fetchone()
+        if not b:
+            raise HTTPException(404, "Bottiglia non trovata")
+        c.execute("UPDATE bottiglie SET categoria=? WHERE id=?", (cc.categoria, bid))
+        c.execute("INSERT OR REPLACE INTO categoria_prodotto VALUES (?, ?)", (b["product_id"], cc.categoria))
+        return serializza(c.execute("SELECT * FROM bottiglie WHERE id=?", (bid,)).fetchone())
 
 
 @app.get("/api/sessione")
@@ -311,8 +370,9 @@ def vendi_calice(bid: int, d: Delta, request: Request):
         if not b or b["stato"] == "chiusa":
             raise HTTPException(404, "Bottiglia non trovata")
         nuovi = b["calici"] + d.delta
-        if nuovi < 0:
-            raise HTTPException(400, "I calici non possono essere negativi")
+        if nuovi < (b["autoconsumo"] or 0):
+            raise HTTPException(400, "Non puoi scendere sotto i calici in autoconsumo: annullali da Storico → Autoconsumo"
+                                if b["autoconsumo"] else "I calici non possono essere negativi")
         c.execute("UPDATE bottiglie SET calici=? WHERE id=?", (nuovi, bid))
         c.execute("INSERT INTO vendite (bottiglia_id, sessione_id, ts, calici, utente) VALUES (?,?,?,?,?)",
                   (bid, s["id"], datetime.now().isoformat(timespec="seconds"), d.delta, chi(request)))
@@ -418,6 +478,7 @@ def chiudi_bottiglia(bid: int, request: Request, senza_odoo: bool = False):
             try:
                 odoo.scarica_bottiglia(b["product_id"], 1)
             except Exception as e:
+                logging.getLogger("mescita").exception("scarico bottiglia %s fallito", bid)
                 raise HTTPException(502, f"Odoo non ha scaricato la bottiglia: {e}. "
                                          "Controlla su Odoo prima di riprovare.")
         c.execute("""UPDATE bottiglie SET stato='chiusa', chiusa_il=?, giorni_aperta=?,
@@ -532,7 +593,7 @@ def pos_calici():
         v = vini.setdefault(b["product_id"], {"vino_product_id": b["product_id"], "nome": b["nome"],
                                               "calici_app": 0, "dal": None, "bottiglie": 0,
                                               "calici_cassa": 0, "calici_aperti": 0})
-        v["calici_app"] += b["calici"] - (b["autoconsumo"] or 0)   # l'autoconsumo non passa dalla cassa
+        v["calici_app"] += max(0, b["calici"] - (b["autoconsumo"] or 0))   # l'autoconsumo non passa dalla cassa
         v["autoconsumo"] = v.get("autoconsumo", 0) + (b["autoconsumo"] or 0)
         v["bottiglie"] += 1
         dal = b["aperta_ts"] or f"{b['aperta_il']} 00:00:00"

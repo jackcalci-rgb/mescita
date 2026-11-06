@@ -2,8 +2,11 @@
 
 Se ODOO_URL non è impostato, usa un magazzino finto (modalità demo).
 """
+import logging
 import os
 import xmlrpc.client
+
+log = logging.getLogger("mescita.odoo")
 
 
 class OdooClient:
@@ -198,19 +201,38 @@ class OdooClient:
         self._call("stock.quant", "write", [q["id"]], {"inventory_quantity": atteso})
         try:
             self._call("stock.quant", "action_apply_inventory", [q["id"]])
-        except xmlrpc.client.Fault as e:
+        except Exception as e:
             # Odoo applica la rettifica ma action_apply_inventory restituisce None, che
             # XML-RPC non sa trasmettere ("cannot marshal None"): non è un vero errore.
-            # Per sicurezza controlliamo comunque che la giacenza sia davvero scesa.
-            if not self._giacenza_scesa(q["id"], atteso):
-                raise RuntimeError(f"Odoo ha risposto: {e.faultString.strip().splitlines()[-1]}")
+            # Qualunque sia l'errore, se la giacenza è davvero scesa lo scarico è riuscito.
+            testo = getattr(e, "faultString", str(e)).strip().splitlines()[-1:] or [repr(e)]
+            log.warning("action_apply_inventory prodotto %s quant %s: %s", product_id, q["id"], testo[0])
+            try:
+                ok = self._giacenza_scesa(product_id, q["id"], atteso, q["quantity"] - atteso)
+            except Exception as e2:
+                log.exception("verifica giacenza fallita")
+                raise RuntimeError(f"Odoo ha risposto: {testo[0]} (verifica giacenza fallita: {e2})")
+            if not ok:
+                raise RuntimeError(f"Odoo ha risposto: {testo[0]}")
+            log.info("scarico prodotto %s confermato dalla giacenza", product_id)
         return True
 
-    def _giacenza_scesa(self, quant_id, atteso):
-        r = self._call("stock.quant", "read", [quant_id], fields=["quantity"])
+    def _giacenza_scesa(self, product_id, quant_id, atteso, quante):
+        """True se la rettifica è stata applicata: il quant ha la quantità attesa,
+        oppure (se Odoo ha ricreato/unito i quant) esiste una rettifica appena fatta."""
+        r = self._call("stock.quant", "search_read", [("id", "=", quant_id)],
+                       fields=["quantity", "inventory_quantity_set"])
         if not r:                      # quant svuotato e rimosso da Odoo
             return atteso <= 0
-        return abs(r[0]["quantity"] - atteso) < 0.001
+        if abs(r[0]["quantity"] - atteso) < 0.001:
+            return True
+        # in alternativa: movimento di rettifica di questo prodotto negli ultimi 2 minuti
+        from datetime import datetime, timedelta, timezone
+        da = (datetime.now(timezone.utc) - timedelta(minutes=2)).strftime("%Y-%m-%d %H:%M:%S")
+        mosse = self._call("stock.move", "search_read",
+                           [("product_id", "=", product_id), ("state", "=", "done"), ("date", ">=", da),
+                            ("is_inventory", "=", True)], fields=["id"], limit=1)
+        return bool(mosse)
 
     # --- POS: calici venduti in tempo reale --------------------------------
     def prodotti_pos(self):
