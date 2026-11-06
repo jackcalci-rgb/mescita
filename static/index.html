@@ -75,8 +75,8 @@ h3{font-size:13px;margin:22px 0 10px;color:var(--muted);text-transform:uppercase
 .cassa{display:flex;align-items:center;gap:8px;flex-wrap:wrap;background:var(--soft);border-radius:12px;padding:8px 10px;font-size:13px}
 .cassa svg.i{width:16px;height:16px}
 [hidden]{display:none!important}
-.actions{display:grid;grid-template-columns:52px 1fr 52px auto;gap:8px}
-@media (max-width:420px){.actions{grid-template-columns:46px 1fr 46px auto;gap:6px}.actions .done{padding:0 12px}}
+.actions{display:grid;grid-template-columns:46px minmax(0,1fr) 46px auto;gap:6px}.actions .done{padding:0 12px}
+.cat-edit{background:none;border:0;padding:0;font:inherit;color:inherit;cursor:pointer;text-decoration:underline dotted;text-underline-offset:3px;font-weight:inherit}
 .actions .gift{height:52px;padding:0;background:var(--soft);color:var(--ink)}
 .auto-note{font-size:12px;color:var(--muted);text-align:right;margin-top:-6px}
 .motivi{display:grid;grid-template-columns:1fr 1fr;gap:8px}
@@ -413,7 +413,7 @@ function disegnaBottiglie(){
           <div class="name">${esc(b.nome)}</div><span class="pill ${dc}">${dt}</span>
         </div>
         <div class="meta" style="margin-top:6px">
-          <span>${esc(b.categoria_nome)}</span>
+          <button class="cat-edit" title="Cambia tipo di vino" onclick="cambiaCategoria(${b.id})">${esc(b.categoria_nome)}</button>
           <span>${ic('clock')}${b.giorni === 0 ? 'aperta oggi' : 'aperta da ' + b.giorni + ' gg'} · max ${b.max_giorni}</span>
           ${b.aperta_da ? `<span>${ic('user')}${esc(b.aperta_da)}</span>` : ''}
           ${b.costosa ? `<span class="pill p-warn">${ic('euro')}${euro(b.prezzo)}</span>` : ''}
@@ -432,6 +432,17 @@ function disegnaBottiglie(){
     : `<div class="card empty" style="grid-column:1/-1">${ic('bottle')}<div><b>Nessuna bottiglia aperta</b></div><div class="small">Premi "Apri bottiglia" per iniziare a servire al calice.</div></div>`;
   if (ULTIMA_POS) disegnaCassaSuBottiglie(ULTIMA_POS);
 }
+function cambiaCategoria(id){
+  const b = BOTT.find(x => x.id === id); if (!b) return;
+  dialogo(`<h3>Tipo di vino · ${esc(b.nome)}</h3>
+    <p class="muted small" style="margin-top:-6px">Serve a calcolare quanti giorni può restare aperta. Vale anche per le prossime bottiglie di questo vino.</p>
+    <select id="nuovaCat">${Object.entries(INFO.categorie).map(([k, c]) => `<option value="${k}" ${k === b.categoria ? 'selected' : ''}>${esc(c.nome)} · max ${c.max} gg</option>`).join('')}</select>
+    <div class="foot"><button class="btn-ghost" onclick="chiudiDlg()">Annulla</button><button class="btn-accent" onclick="salvaCategoria(${id})">${ic('check')}Salva</button></div>`);
+}
+async function salvaCategoria(id){
+  try { await api(`/api/bottiglie/${id}/categoria`, {categoria:$('nuovaCat').value}); chiudiDlg(); toast('Tipo di vino aggiornato'); carica(); } catch (e) {}
+}
+
 // ---------------- autoconsumo: calici bevuti dal personale, offerti, assaggi, versati
 let AUTO = {n:1, motivo:'personale'};
 const ICO_MOTIVO = {personale:'🍷', offerto:'🎁', assaggio:'👅', versato:'💧'};
