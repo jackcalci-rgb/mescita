@@ -404,17 +404,22 @@ def segna_finita(bid: int, f: Finita):
 
 
 @app.post("/api/bottiglie/{bid}/chiudi")
-def chiudi_bottiglia(bid: int, request: Request):
+def chiudi_bottiglia(bid: int, request: Request, senza_odoo: bool = False):
     """Bottiglia finita, confermata da una persona: la scarica subito da Odoo e la chiude.
-    Se lo scarico su Odoo non riesce, la bottiglia resta aperta e si può riprovare."""
+    Se lo scarico su Odoo non riesce, la bottiglia resta aperta e si può riprovare.
+    senza_odoo=true (solo admin): chiude senza scaricare, per le bottiglie già scalate a mano su Odoo."""
+    if senza_odoo:
+        solo_admin(request)
     with db() as c:
         b = c.execute("SELECT * FROM bottiglie WHERE id=?", (bid,)).fetchone()
         if not b or b["stato"] == "chiusa":
             raise HTTPException(404, "Bottiglia non trovata")
-        try:
-            odoo.scarica_bottiglia(b["product_id"], 1)
-        except Exception as e:
-            raise HTTPException(502, f"Odoo non ha scaricato la bottiglia, riprova: {e}")
+        if not senza_odoo:
+            try:
+                odoo.scarica_bottiglia(b["product_id"], 1)
+            except Exception as e:
+                raise HTTPException(502, f"Odoo non ha scaricato la bottiglia: {e}. "
+                                         "Controlla su Odoo prima di riprovare.")
         c.execute("""UPDATE bottiglie SET stato='chiusa', chiusa_il=?, giorni_aperta=?,
                      faccina=?, scaricata_odoo=1, scaricata_ts=?, chiusa_da=? WHERE id=?""",
                   (oggi(), giorni_da(b["aperta_il"]), faccina(b["calici"]),
