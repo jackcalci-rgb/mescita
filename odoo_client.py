@@ -194,9 +194,23 @@ class OdooClient:
         if not quants:
             raise RuntimeError(f"Nessuna giacenza trovata per il prodotto {product_id}")
         q = quants[0]
-        self._call("stock.quant", "write", [q["id"]], {"inventory_quantity": q["quantity"] - quante})
-        self._call("stock.quant", "action_apply_inventory", [q["id"]])
+        atteso = q["quantity"] - quante
+        self._call("stock.quant", "write", [q["id"]], {"inventory_quantity": atteso})
+        try:
+            self._call("stock.quant", "action_apply_inventory", [q["id"]])
+        except xmlrpc.client.Fault as e:
+            # Odoo applica la rettifica ma action_apply_inventory restituisce None, che
+            # XML-RPC non sa trasmettere ("cannot marshal None"): non è un vero errore.
+            # Per sicurezza controlliamo comunque che la giacenza sia davvero scesa.
+            if not self._giacenza_scesa(q["id"], atteso):
+                raise RuntimeError(f"Odoo ha risposto: {e.faultString.strip().splitlines()[-1]}")
         return True
+
+    def _giacenza_scesa(self, quant_id, atteso):
+        r = self._call("stock.quant", "read", [quant_id], fields=["quantity"])
+        if not r:                      # quant svuotato e rimosso da Odoo
+            return atteso <= 0
+        return abs(r[0]["quantity"] - atteso) < 0.001
 
     # --- POS: calici venduti in tempo reale --------------------------------
     def prodotti_pos(self):

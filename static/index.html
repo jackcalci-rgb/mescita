@@ -531,20 +531,25 @@ function finita(id){
       <div><small>Calici in cassa${v && v.bottiglie > 1 ? ' (' + v.bottiglie + ' bottiglie)' : ''}</small><b>${v ? v.calici_cassa : '—'}</b></div>
     </div>
     <p class="muted small" style="margin:0">Aperta ${b.giorni === 0 ? 'oggi' : 'da ' + b.giorni + ' giorni'}${b.aperta_da ? ' da ' + esc(b.aperta_da) : ''}. Confermando, 1 bottiglia viene scaricata subito dall'inventario Odoo.</p>
-    <div class="foot"><button class="btn-ghost" onclick="chiudiDlg()">Annulla</button><button class="btn" id="btnConf" onclick="confermaFinita(${b.id})">${ic('cloud')}Conferma e scarica da Odoo</button></div>`);
+    <div class="foot"><button class="btn-ghost" onclick="chiudiDlg()">Annulla</button>${ME.ruolo === 'admin' ? `<button class="btn-ghost" id="btnSenza" title="Per le bottiglie già scalate su Odoo" onclick="confermaFinita(${b.id}, true)">Già scalata: chiudi senza Odoo</button>` : ''}<button class="btn" id="btnConf" onclick="confermaFinita(${b.id})">${ic('cloud')}Conferma e scarica da Odoo</button></div>`);
 }
-async function confermaFinita(id){
+async function confermaFinita(id, senzaOdoo = false){
+  if (senzaOdoo && !confirm('Chiudere senza scaricare da Odoo? Fallo solo se la bottiglia è già stata scalata su Odoo.')) return;
   $('btnConf').disabled = true;
   try {
     const prima = BOTT.find(x => x.id === id), v = prima && APERTE.find(x => x.vino_product_id === prima.product_id);
     const cassa = (v && v.bottiglie === 1 ? v.calici_cassa : 0) + (prima ? prima.autoconsumo || 0 : 0);   // cassa + autoconsumo
-    const b = await api(`/api/bottiglie/${id}/chiudi`, {});
+    const b = await api(`/api/bottiglie/${id}/chiudi${senzaOdoo ? '?senza_odoo=true' : ''}`, {});
     const usciti = Math.max(b.calici, cassa);
     if (usciti > 0 && usciti < INFO.calici_per_bottiglia) { troppoVino(b, usciti); carica(); return; }
     dialogo(`<div class="big-face">${faccia(b.faccina)}</div><h3 style="text-align:center">${esc(b.nome)} chiusa</h3>
-      <p class="muted" style="text-align:center;margin:0">${b.calici} calici su ${INFO.calici_per_bottiglia} · aperta ${b.giorni_aperta} gg · scaricata da Odoo</p>
+      <p class="muted" style="text-align:center;margin:0">${b.calici} calici su ${INFO.calici_per_bottiglia} · aperta ${b.giorni_aperta} gg · ${senzaOdoo ? 'chiusa senza scaricare da Odoo' : 'scaricata da Odoo'}</p>
       <div class="foot" style="justify-content:center"><button class="btn" onclick="chiudiDlg()">OK</button></div>`);
-  } catch (e) { $('btnConf').disabled = false; }
+  } catch (e) {
+    $('btnConf').disabled = false;
+    if (e.status === 502 && ME.ruolo === 'admin' && !$('btnSenza')) $('btnConf').insertAdjacentHTML('beforebegin',
+      `<button class="btn-ghost" id="btnSenza" onclick="confermaFinita(${id}, true)">Già scalata: chiudi senza Odoo</button>`);
+  }
   carica();
 }
 
