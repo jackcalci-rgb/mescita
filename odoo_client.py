@@ -120,6 +120,15 @@ class OdooClient:
         return sorted(({"id": p["id"], "name": p["display_name"], "qty": p["qty_available"],
                         "prezzo": p.get(campo)} for p in prodotti), key=lambda v: v["name"])
 
+    def immagine_prodotto(self, product_id):
+        """Foto del prodotto (256 px) come bytes, oppure None se manca (o in demo)."""
+        if self.demo:
+            return None
+        import base64
+        r = self._call("product.product", "read", [product_id], fields=["image_256"])
+        b = r and r[0].get("image_256")
+        return base64.b64decode(b) if b else None
+
     def inventario_vini(self):
         """Inventario completo dei vini con giacenza, categoria (POS o prodotto) e costo.
         Ritorna [{id, name, qty, prezzo, categoria}]."""
@@ -131,6 +140,13 @@ class OdooClient:
         campo = os.getenv("ODOO_CAMPO_PREZZO", "standard_price")
         pos = self._campo_pos_categ()
         campi = ["display_name", "qty_available", campo, "categ_id"] + ([pos] if pos else [])
+        # "Disponibile nell'ordine fai da te" (Odoo 17+): se il campo esiste lo passiamo al sito
+        try:
+            ordc = "self_order_available" if "self_order_available" in self._call("product.product", "fields_get", attributes=["type"]) else None
+        except Exception:
+            ordc = None
+        if ordc:
+            campi = campi + [ordc]
         dom = [("type", "in", ["product", "consu"])] + self._filtro_categorie(self.categ_name)
         ctx = {"location": self.location_id} if self.location_id else {}
         prodotti = self._call("product.product", "search_read", dom, fields=campi, context=ctx)
@@ -151,7 +167,8 @@ class OdooClient:
             return scelta or (p["categ_id"][1] if p.get("categ_id") else "")
 
         return sorted(({"id": p["id"], "name": p["display_name"], "qty": p["qty_available"],
-                        "prezzo": p.get(campo), "categoria": categoria(p)} for p in prodotti),
+                        "prezzo": p.get(campo), "categoria": categoria(p),
+                        "ordinabile": bool(p.get("self_order_available", True))} for p in prodotti),
                       key=lambda v: (v["categoria"], v["name"]))
 
     def uscite_vini(self, product_ids, dal_utc: str):

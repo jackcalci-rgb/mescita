@@ -8,7 +8,7 @@ from datetime import date, datetime, timezone
 from typing import Optional
 
 from fastapi import FastAPI, HTTPException, Request
-from fastapi.responses import FileResponse, JSONResponse, RedirectResponse
+from fastapi.responses import FileResponse, JSONResponse, RedirectResponse, Response
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 
@@ -817,6 +817,7 @@ def inventario(request: Request):
             continue
         righe.append({"id": v["id"], "nome": v["name"], "categoria": v["categoria"] or "Senza categoria",
                       "giacenza_odoo": giacenza, "in_mescita": in_mescita, "disponibili": disp,
+                      "ordinabile": v.get("ordinabile", True),
                       "prezzo": v.get("prezzo"), "valore": round(disp * (v.get("prezzo") or 0), 2)})
     return {"aggiornato": datetime.now().isoformat(timespec="seconds"), "righe": righe,
             "bottiglie": sum(r["disponibili"] for r in righe),
@@ -824,6 +825,17 @@ def inventario(request: Request):
             "valore": round(sum(r["valore"] for r in righe), 2),
             "vini": sum(1 for r in righe if r["disponibili"] > 0),
             "esauriti": sum(1 for r in righe if r["disponibili"] == 0)}
+
+
+# ---------------------------------------------------------------- foto prodotto (per il sito)
+@app.get("/api/immagine/{product_id}")
+def immagine(product_id: int):
+    """Foto del prodotto da Odoo, usata dalla carta vini del sito."""
+    dati = odoo.immagine_prodotto(product_id)
+    if not dati:
+        raise HTTPException(404, "Nessuna immagine")
+    tipo = "image/png" if dati[:4] == b"\x89PNG" else "image/jpeg"
+    return Response(dati, media_type=tipo, headers={"Cache-Control": "private, max-age=3600"})
 
 
 # ---------------------------------------------------------------- ordini consigliati
