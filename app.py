@@ -75,6 +75,12 @@ with db() as c:
         c.execute("ALTER TABLE vendite ADD COLUMN utente TEXT")
     if "scaricata_ts" not in [r["name"] for r in c.execute("PRAGMA table_info(bottiglie)")]:
         c.execute("ALTER TABLE bottiglie ADD COLUMN scaricata_ts TEXT")  # quando Odoo ha confermato lo scarico
+    # riallinea i contatori: autoconsumo = somma delle registrazioni, calici mai sotto l'autoconsumo
+    # (prima il "−" poteva scendere sotto l'autoconsumo e lasciare numeri incoerenti)
+    c.execute("""UPDATE bottiglie SET autoconsumo = COALESCE(
+                   (SELECT SUM(calici) FROM autoconsumo a WHERE a.bottiglia_id = bottiglie.id), 0)
+                 WHERE stato != 'chiusa'""")
+    c.execute("UPDATE bottiglie SET calici = autoconsumo WHERE stato != 'chiusa' AND calici < autoconsumo")
     c.execute("""INSERT OR IGNORE INTO abbinamenti_produttore
                  SELECT calice_product_id, '', calice_nome, vino_product_id FROM abbinamenti""")
 
