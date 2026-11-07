@@ -66,6 +66,10 @@ Ogni riga POS di un calice (prodotti della categoria `ODOO_CALICE_CATEGORY`, es.
 
 Un ordine compare appena la cassa lo sincronizza con Odoo: in modalità ristorante succede a ogni invio in cucina, cambio tavolo o pagamento. L'utente Odoo della web app deve poter leggere il Punto Vendita.
 
+I calici battuti in cassa fino a 12 ore prima di premere "Apri bottiglia" contano per quella bottiglia, purché in quel momento non fosse aperta un'altra bottiglia dello stesso vino. Le ore si cambiano con `MESCITA_TOLLERANZA_APERTURA_ORE` nel `.env`.
+
+**Bottiglia aperta per sbaglio (solo admin):** nella finestra di "Finita" c'è "Annulla l'apertura". Cancella la bottiglia dall'app con i suoi calici e l'autoconsumo, senza toccare Odoo.
+
 ## Ordini consigliati (solo admin)
 
 La scheda **Ordini** suggerisce cosa ordinare. Le vendite arrivano dai movimenti di magazzino Odoo: bottiglie vendute e bottiglie finite al calice. Le regole sono:

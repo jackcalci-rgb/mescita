@@ -542,6 +542,7 @@ function finita(id){
       <div><small>Calici in cassa${v && v.bottiglie > 1 ? ' (' + v.bottiglie + ' bottiglie)' : ''}</small><b>${v ? v.calici_cassa : '—'}</b></div>
     </div>
     <p class="muted small" style="margin:0">Aperta ${b.giorni === 0 ? 'oggi' : 'da ' + b.giorni + ' giorni'}${b.aperta_da ? ' da ' + esc(b.aperta_da) : ''}. Confermando, 1 bottiglia viene scaricata subito dall'inventario Odoo.</p>
+    ${ME.ruolo === 'admin' ? `<p class="small" style="margin:6px 0 0"><button class="btn-ghost small" onclick="annullaApertura(${b.id})">Aperta per sbaglio? Annulla l'apertura</button></p>` : ''}
     <div class="foot"><button class="btn-ghost" onclick="chiudiDlg()">Annulla</button>${ME.ruolo === 'admin' ? `<button class="btn-ghost" id="btnSenza" title="Per le bottiglie già scalate su Odoo" onclick="confermaFinita(${b.id}, true)">Già scalata: chiudi senza Odoo</button>` : ''}<button class="btn" id="btnConf" onclick="confermaFinita(${b.id})">${ic('cloud')}Conferma e scarica da Odoo</button></div>`);
 }
 async function confermaFinita(id, senzaOdoo = false){
@@ -561,6 +562,14 @@ async function confermaFinita(id, senzaOdoo = false){
     if (e.status === 502 && ME.ruolo === 'admin' && !$('btnSenza')) $('btnConf').insertAdjacentHTML('beforebegin',
       `<button class="btn-ghost" id="btnSenza" onclick="confermaFinita(${id}, true)">Già scalata: chiudi senza Odoo</button>`);
   }
+  carica();
+}
+
+// Solo admin: bottiglia aperta per sbaglio, la toglie dall'app senza toccare Odoo
+async function annullaApertura(id){
+  const b = BOTT.find(x => x.id === id);
+  if (!confirm(`Annullare l'apertura di ${b ? b.nome : 'questa bottiglia'}?\n\nLa bottiglia sparisce dall'app con i suoi calici e l'autoconsumo. Odoo non viene toccato.`)) return;
+  try { await api(`/api/bottiglie/${id}`, undefined, {method:'DELETE'}); chiudiDlg(); toast('Apertura annullata'); } catch (e) {}
   carica();
 }
 

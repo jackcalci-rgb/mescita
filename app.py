@@ -494,6 +494,22 @@ def chiudi_bottiglia(bid: int, request: Request, senza_odoo: bool = False):
         return serializza(c.execute("SELECT * FROM bottiglie WHERE id=?", (bid,)).fetchone())
 
 
+@app.delete("/api/bottiglie/{bid}")
+def annulla_apertura(bid: int, request: Request):
+    """Solo admin: cancella una bottiglia aperta per sbaglio nell'app, come se non fosse mai
+    stata aperta. Non tocca Odoo e toglie anche i calici e l'autoconsumo segnati."""
+    solo_admin(request)
+    with db() as c:
+        b = c.execute("SELECT * FROM bottiglie WHERE id=?", (bid,)).fetchone()
+        if not b or b["stato"] == "chiusa":
+            raise HTTPException(404, "Bottiglia non trovata o già chiusa")
+        c.execute("DELETE FROM vendite WHERE bottiglia_id=?", (bid,))
+        c.execute("DELETE FROM autoconsumo WHERE bottiglia_id=?", (bid,))
+        c.execute("DELETE FROM bottiglie WHERE id=?", (bid,))
+    logging.getLogger("mescita").info("apertura annullata: bottiglia %s (%s) da %s", bid, b["nome"], chi(request))
+    return {"ok": True}
+
+
 @app.post("/api/bottiglie/{bid}/sincronizza")
 def risincronizza(bid: int):
     """Riprova lo scarico su Odoo di una bottiglia chiusa ma non ancora scaricata."""
@@ -604,10 +620,41 @@ def pos_calici():
         v["bottiglie"] += 1
         dal = b["aperta_ts"] or f"{b['aperta_il']} 00:00:00"
         v["dal"] = min(v["dal"] or dal, dal)
+    # Calici battuti poco prima di premere "Apri bottiglia" (succede spesso a servizio pieno):
+    # contano per la bottiglia se nelle ore prima nessun'altra bottiglia dello stesso vino era aperta.
+    from datetime import timedelta
+    from zoneinfo import ZoneInfo
+    tz = ZoneInfo(os.getenv("MESCITA_TZ", "Europe/Rome"))
+    try:
+        ore = max(0.0, float(os.getenv("MESCITA_TOLLERANZA_APERTURA_ORE", "12")))
+    except ValueError:
+        ore = 12.0
+    fmt = "%Y-%m-%d %H:%M:%S"
+    with db() as c:
+        chiusure = {}
+        for r in c.execute("SELECT product_id, MAX(COALESCE(scaricata_ts, chiusa_il)) ts FROM bottiglie "
+                           "WHERE stato = 'chiusa' GROUP BY product_id"):
+            if r["ts"]:
+                try:
+                    t = datetime.fromisoformat(r["ts"])
+                    t = (t if t.tzinfo else t.replace(tzinfo=tz)).astimezone(timezone.utc)
+                    chiusure[r["product_id"]] = t.strftime(fmt)
+                except ValueError:
+                    pass
+    for pid, v in vini.items():
+        v["conta_dal"] = v["dal"]
+        try:
+            prima = (datetime.strptime(v["dal"], fmt) - timedelta(hours=ore)).strftime(fmt)
+        except ValueError:
+            continue
+        chiusa = chiusure.get(pid)
+        if chiusa and chiusa >= v["dal"]:
+            continue          # c'era ancora un'altra bottiglia aperta: i calici prima sono suoi
+        v["conta_dal"] = max(prima, chiusa) if chiusa else prima
     righe = []
     if vini:
         calici_ids = {p["id"] for p in odoo.prodotti_pos()} | {k[0] for k in abb if k[0]}
-        righe = odoo.righe_pos(calici_ids, min(v["dal"] for v in vini.values()))
+        righe = odoo.righe_pos(calici_ids, min(v["conta_dal"] for v in vini.values()))
 
     def assegna(r):
         """Ritorna (vino_product_id | None, esito)."""
@@ -626,7 +673,7 @@ def pos_calici():
     for r in righe:
         vid, esito = assegna(r)
         v = vini.get(vid)
-        if v and r["data"] < v["dal"]:
+        if v and r["data"] < v["conta_dal"]:
             v, esito = None, "venduto prima dell'apertura"
         if v:
             v["calici_cassa"] += r["qty"]
